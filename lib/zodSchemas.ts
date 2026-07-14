@@ -37,3 +37,18 @@ export const sceneFieldSchema = z.object({
 })
 
 export const sceneFieldSetSchema = z.array(sceneFieldSchema)
+
+export const annotationSaveSchema = z.object({
+  image_id: z.string().uuid(),
+  project_id: z.string().uuid(),
+  boxes: z.array(z.object({
+    class_key: z.string(),
+    ymin: z.number().min(0).max(1000),
+    xmin: z.number().min(0).max(1000),
+    ymax: z.number().min(0).max(1000),
+    xmax: z.number().min(0).max(1000),
+  })).refine(boxes => {
+    // Valid coordinates checking (min < max)
+    return boxes.every(b => b.ymin < b.ymax && b.xmin < b.xmax)
+  }, { message: "Invalid box coordinates: min must be less than max" })
+})
