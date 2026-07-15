@@ -1,27 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #f5f6fa;
-  --surface: #ffffff;
-  --text: #1a1d27;
-  --muted: #5b6178;
-  --accent: #0097a7;
-  --warn: #d81b60;
-}
-
-.dark {
-  --bg: #0b0d12;
-  --surface: rgba(26,29,39,0.75);
-  --text: #e8eaf6;
-  --muted: #9aa3c4;
-  --accent: #00e5ff;
-  --warn: #ff4081;
+  --bg: #09090b;
+  --surface: rgba(24, 24, 27, 0.4);
+  --surface-hover: rgba(39, 39, 42, 0.6);
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --accent: #38bdf8;
+  --accent-glow: rgba(56, 189, 248, 0.5);
+  --warn: #f43f5e;
 }
 
 @theme inline {
   --color-background: var(--bg);
   --color-foreground: var(--text);
   --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
   --color-text: var(--text);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
@@ -29,6 +23,45 @@
 }
 
 body {
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image: 
+    radial-gradient(circle at 15% 50%, rgba(56, 189, 248, 0.05), transparent 25%),
+    radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.05), transparent 25%);
   color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* Glassmorphism Utilities */
+.glass {
+  background: var(--surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+.glass-interactive {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-interactive:hover {
+  background: var(--surface-hover);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2), 0 0 15px var(--accent-glow);
+}
+
+.btn-premium {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(168, 85, 247, 0.2));
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.1);
+  transition: all 0.3s ease;
+}
+
+.btn-premium:hover {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.4), rgba(168, 85, 247, 0.4));
+  border: 1px solid rgba(56, 189, 248, 0.6);
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
+  transform: translateY(-1px);
 }

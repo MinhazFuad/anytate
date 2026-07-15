@@ -22,12 +22,16 @@ export default function AnnotationCanvas({
   imgSrc, 
   classes, 
   onSave, 
-  onSkip
+  onSkip,
+  initialBoxes,
+  imageId
 }: { 
   imgSrc: string
   classes: any[]
   onSave: (boxes: any[]) => void
   onSkip: () => void
+  initialBoxes?: any[]
+  imageId?: string
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -40,8 +44,34 @@ export default function AnnotationCanvas({
   const [currentPos, setCurrentPos] = useState({ x: 0, y: 0 })
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerPos, setPickerPos] = useState({ x: 0, y: 0 })
+  const [selectedBoxIndex, setSelectedBoxIndex] = useState<number | null>(null)
   
   const [lastClass, setLastClass] = useState<string | null>(null)
+  const [canvasDims, setCanvasDims] = useState({ w: 0, h: 0 })
+
+  // Hydrate from initialBoxes
+  useEffect(() => {
+    if (!initialBoxes || !classes.length || canvasDims.w === 0 || canvasDims.h === 0) return
+    const H = canvasDims.h
+    const W = canvasDims.w
+
+    const hydrated: BoxWithClass[] = initialBoxes.map(ib => {
+      const cls = classes.find(c => c.class_key === ib.class_key)
+      const py = (ib.ymin / 1000) * H
+      const px = (ib.xmin / 1000) * W
+      const ph = ((ib.ymax - ib.ymin) / 1000) * H
+      const pw = ((ib.xmax - ib.xmin) / 1000) * W
+      
+      return {
+        bbox: [ib.ymin, ib.xmin, ib.ymax, ib.xmax],
+        px, py, pw, ph,
+        class_key: ib.class_key,
+        label: cls?.display_name || ib.class_key,
+        color: cls?.color || '#ffffff'
+      }
+    })
+    setBoxes(hydrated)
+  }, [initialBoxes, classes, canvasDims])
 
   // Load image
   useEffect(() => {
@@ -67,6 +97,7 @@ export default function AnnotationCanvas({
       canvas.height = h
       
       imgRef.current = img
+      setCanvasDims({ w, h }) // Trigger hydration and redraw
       redraw()
     }
   }, [imgSrc])
@@ -96,6 +127,14 @@ export default function AnnotationCanvas({
       ctx.fillRect(b.px, b.py - 16, tw + 8, 21)
       ctx.fillStyle = b.color
       ctx.fillText(`#${i+1} ${b.label}`, b.px + 4, b.py + 3)
+      // Highlight selected box
+      if (i === selectedBoxIndex) {
+        ctx.strokeStyle = '#ffffff'
+        ctx.lineWidth = 3
+        ctx.setLineDash([5, 5])
+        ctx.strokeRect(b.px, b.py, b.pw, b.ph)
+        ctx.setLineDash([])
+      }
     })
     
     // Draw pending box
@@ -127,14 +166,27 @@ export default function AnnotationCanvas({
     }
   }
 
-  useEffect(() => { redraw() }, [boxes, drawing, currentPos, pendingBox, pickerOpen])
+  useEffect(() => { redraw() }, [boxes, drawing, currentPos, pendingBox, pickerOpen, selectedBoxIndex])
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (pickerOpen) return
     e.preventDefault()
     const r = canvasRef.current!.getBoundingClientRect()
-    setStartPos({ x: e.clientX - r.left, y: e.clientY - r.top })
-    setCurrentPos({ x: e.clientX - r.left, y: e.clientY - r.top })
+    const mx = e.clientX - r.left
+    const my = e.clientY - r.top
+
+    // Check if clicking existing box (reverse order to pick top-most)
+    for (let i = boxes.length - 1; i >= 0; i--) {
+      const b = boxes[i]
+      if (mx >= b.px && mx <= b.px + b.pw && my >= b.py && my <= b.py + b.ph) {
+        setSelectedBoxIndex(i)
+        return
+      }
+    }
+
+    setSelectedBoxIndex(null)
+    setStartPos({ x: mx, y: my })
+    setCurrentPos({ x: mx, y: my })
     setDrawing(true)
   }
 
@@ -200,10 +252,17 @@ export default function AnnotationCanvas({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Undo
+      // Undo current session
       if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
         if (pickerOpen) return
         setBoxes(b => b.slice(0, -1))
+        return
+      }
+      
+      // Delete selected
+      if ((e.key === 'Backspace' || e.key === 'Delete') && selectedBoxIndex !== null) {
+        setBoxes(b => b.filter((_, idx) => idx !== selectedBoxIndex))
+        setSelectedBoxIndex(null)
         return
       }
       
@@ -221,13 +280,72 @@ export default function AnnotationCanvas({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [pickerOpen, pendingBox, classes])
+  }, [pickerOpen, pendingBox, classes, selectedBoxIndex])
+
+  // Autosave Drafts (Milestone 6)
+  const lastSavedStateRef = useRef<string>('')
+  
+  useEffect(() => {
+    if (!imageId) return
+    const interval = setInterval(async () => {
+      // Don't save if it hasn't changed or if empty initially
+      if (boxes.length === 0 && !lastSavedStateRef.current) return
+      
+      const currentState = JSON.stringify(boxes.map(b => ({
+        class_key: b.class_key,
+        ymin: b.bbox[0],
+        xmin: b.bbox[1],
+        ymax: b.bbox[2],
+        xmax: b.bbox[3]
+      })))
+      
+      if (currentState === lastSavedStateRef.current) return
+      
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      
+      await supabase.from('drafts').upsert({
+        image_id: imageId,
+        user_id: user.id,
+        draft_state: { boxes: JSON.parse(currentState) },
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'image_id, user_id' })
+      
+      lastSavedStateRef.current = currentState
+      
+    }, 3000)
+    
+    return () => clearInterval(interval)
+  }, [boxes, imageId])
+
+  const handleServerUndo = async () => {
+    if (!imageId) return
+    try {
+      const res = await fetch('/api/annotations/undo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_id: imageId })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      
+      alert(data.action === 'deleted' ? 'Reverted to unannotated state. Reloading...' : 'Reverted to previous edit. Reloading...')
+      window.location.reload()
+    } catch(err: any) {
+      alert("Undo failed: " + err.message)
+    }
+  }
 
   return (
     <div className="relative flex h-full w-full flex-col bg-zinc-950">
       <div className="flex p-4 bg-zinc-900 border-b border-white/10 items-center justify-between z-10">
         <div className="text-sm font-semibold">Annotations: {boxes.length}</div>
         <div className="flex gap-4">
+          {initialBoxes && initialBoxes.length > 0 && (
+            <button onClick={handleServerUndo} className="px-4 py-2 bg-warn/20 text-warn border border-warn/30 rounded font-semibold hover:bg-warn/30">Undo Server Change</button>
+          )}
           <button onClick={() => onSave(boxes)} className="px-4 py-2 bg-accent text-background rounded font-semibold hover:opacity-90">Save Image</button>
           <button onClick={onSkip} className="px-4 py-2 bg-white/10 text-white rounded font-semibold hover:bg-white/20">Skip Image</button>
         </div>

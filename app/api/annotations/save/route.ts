@@ -35,31 +35,74 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing active taxonomy or scene metadata version for this project' }, { status: 400 })
     }
 
-    // 3. Save to Annotations table
-    const { data: annotation, error: annotationErr } = await supabase.from('annotations').insert({
-      image_id: validatedData.image_id,
-      taxonomy_version_id: taxVersion.id,
-      scene_metadata_field_set_id: sceneVersion.id,
-      grounded_instances: validatedData.boxes,
-      scene_context: {}, // Scene context would be passed in a full implementation
-      derived_diagnostics: {},
-      annotator_id: user.id,
-      status: 'pending' // pending review
-    }).select().single()
+    // 3. Check if annotation already exists
+    const { data: existingAnnotation } = await supabase
+      .from('annotations')
+      .select('id, grounded_instances')
+      .eq('image_id', validatedData.image_id)
+      .maybeSingle()
 
-    if (annotationErr) {
-      // If unique constraint violation on image_id, they already annotated it
-      if (annotationErr.code === '23505') {
-        return NextResponse.json({ error: 'Image already annotated' }, { status: 409 })
-      }
-      throw annotationErr
+    let annotationId = ''
+
+    if (existingAnnotation) {
+      // It's an EDIT
+      annotationId = existingAnnotation.id
+      
+      const { error: updateErr } = await supabase.from('annotations').update({
+        taxonomy_version_id: taxVersion.id,
+        scene_metadata_field_set_id: sceneVersion.id,
+        grounded_instances: validatedData.boxes,
+        annotator_id: user.id,
+        updated_at: new Date().toISOString()
+      }).eq('id', annotationId)
+      
+      if (updateErr) throw updateErr
+
+      // Log to history
+      await supabase.from('annotation_history').insert({
+        annotation_id: annotationId,
+        action_type: 'edit_instances',
+        payload: {
+          previous: existingAnnotation.grounded_instances,
+          new: validatedData.boxes
+        },
+        created_by: user.id
+      })
+    } else {
+      // It's a NEW save
+      const { data: newAnn, error: insertErr } = await supabase.from('annotations').insert({
+        image_id: validatedData.image_id,
+        taxonomy_version_id: taxVersion.id,
+        scene_metadata_field_set_id: sceneVersion.id,
+        grounded_instances: validatedData.boxes,
+        scene_context: {},
+        derived_diagnostics: {},
+        annotator_id: user.id,
+        status: 'pending'
+      }).select().single()
+
+      if (insertErr) throw insertErr
+      annotationId = newAnn.id
+
+      // Log to history
+      await supabase.from('annotation_history').insert({
+        annotation_id: annotationId,
+        action_type: 'initial_save',
+        payload: {
+          new: validatedData.boxes
+        },
+        created_by: user.id
+      })
+      
+      // Update the Image status to 'done' only on initial save
+      const { error: imageErr } = await supabase.from('images').update({ status: 'done' }).eq('id', validatedData.image_id)
+      if (imageErr) throw imageErr
     }
 
-    // 4. Update the Image status to 'done'
-    const { error: imageErr } = await supabase.from('images').update({ status: 'done' }).eq('id', validatedData.image_id)
-    if (imageErr) throw imageErr
+    // 4. Delete the user's draft if it exists
+    await supabase.from('drafts').delete().eq('image_id', validatedData.image_id).eq('user_id', user.id)
 
-    return NextResponse.json({ success: true, annotationId: annotation.id })
+    return NextResponse.json({ success: true, annotationId })
 
   } catch (error: any) {
     if (error.name === 'ZodError') {
