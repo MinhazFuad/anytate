@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import Link from 'next/link'
+import { toast } from 'sonner'
+import { ArrowLeft, Check, X } from 'lucide-react'
 import AnnotationCanvas from '@/components/AnnotationCanvas'
 
 export default function ReviewQueuePage() {
@@ -40,7 +43,7 @@ export default function ReviewQueuePage() {
         }
 
         const imageIds = pendingAnnotations.map(a => a.image_id)
-        const { data: images } = await supabase.from('images').select('*').eq('project_id', id).in('id', imageIds)
+        const { data: images } = await supabase.from('images').select('*').eq('project_id', id).eq('drive_folder_id', project.drive_image_folder_id).in('id', imageIds)
 
         if (!images || images.length === 0) {
            throw new Error('No images pending review.')
@@ -96,7 +99,7 @@ export default function ReviewQueuePage() {
          window.location.reload()
       }
     } catch(err: any) {
-       alert("Error updating status: " + err.message)
+       toast.error("Error updating status: " + err.message)
        setLoading(false)
     }
   }
@@ -129,45 +132,45 @@ export default function ReviewQueuePage() {
         throw new Error(errorData.error || 'Validation failed')
       }
       
-      alert('Edits saved! You can now Approve or Flag.')
+      toast.success('Edits saved! You can now Approve or Flag.')
       setLoading(false)
       
     } catch (err: any) {
-      alert("Error saving: " + err.message)
+      toast.error("Error saving: " + err.message)
       setLoading(false)
     }
   }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-background text-text">Loading review queue...</div>
-  if (error) return <div className="min-h-screen flex items-center justify-center bg-background flex-col gap-4">
-    <div className="text-warn">{error}</div>
-    <a href={`/projects/${id}/dashboard`} className="text-accent underline">Back to Dashboard</a>
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-bg text-text-primary">Loading review queue...</div>
+  if (error) return <div className="min-h-screen flex items-center justify-center bg-bg flex-col gap-4">
+    <div className="text-accent-red font-display font-medium">{error}</div>
+    <a href={`/projects/${id}/dashboard`} className="text-accent-cyan hover:text-accent-cyan-hover underline font-display font-medium">Back to Dashboard</a>
   </div>
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-black text-white relative">
-      <div className="absolute inset-0 bg-gradient-to-br from-accent/5 to-purple-500/5 pointer-events-none z-0"></div>
+    <div className="flex h-screen w-screen overflow-hidden bg-bg text-text-primary relative font-body">
       
-      <div className="w-80 border-r border-white/10 glass flex flex-col z-10 relative shadow-2xl">
-         <div className="p-6 border-b border-white/5 font-extrabold flex flex-col gap-3">
-           <div className="text-xl tracking-tight text-white">Review Queue</div>
-           <a href={`/projects/${id}/dashboard`} className="text-xs font-semibold text-accent hover:text-white transition-colors flex items-center gap-1">
-              <span className="text-lg leading-none">←</span> Back to Dashboard
-           </a>
+      <div className="w-80 border-r border-border bg-surface flex flex-col z-10 relative">
+         <div className="p-6 border-b border-border flex flex-col gap-3">
+           <div className="flex items-center justify-between mb-4">
+             <Link href={`/projects/${id}/dashboard`} className="text-text-secondary hover:text-text-primary text-sm font-display font-medium transition-all duration-150 ease-out flex items-center gap-2 w-fit">
+                <ArrowLeft size={18} strokeWidth={1.5} /> Back to Dashboard
+             </Link>
+           </div>
          </div>
          
          <div className="p-6 flex-1 overflow-y-auto">
-           <div className="mb-4 text-xs font-bold uppercase tracking-widest text-muted flex items-center justify-between">
+           <div className="mb-4 text-[11px] font-display font-medium uppercase tracking-[0.03em] text-text-secondary flex items-center justify-between">
               <span>Pending Review</span>
-              <span className="bg-white/10 px-2 py-1 rounded-full text-white">{queue.length}</span>
+              <span className="bg-surface-2 border border-border px-2 py-0.5 rounded-sm text-text-primary font-data">{queue.length}</span>
            </div>
            
-           <div className="flex flex-col gap-3">
+           <div className="flex flex-col gap-2">
              {queue.map(img => (
                <a 
                  key={img.id} 
                  href={`/projects/${id}/review?imageId=${img.id}`}
-                 className={`text-sm p-3 rounded-xl truncate border transition-all duration-300 ${activeImage.id === img.id ? 'bg-accent/20 border-accent/50 text-accent shadow-[0_0_15px_rgba(56,189,248,0.3)]' : 'glass hover:bg-white/5 border-white/5 text-muted hover:text-white'}`}
+                 className={`text-sm p-3 rounded-md truncate border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring ${activeImage.id === img.id ? 'bg-accent-cyan-muted border-accent-cyan text-accent-cyan' : 'bg-surface-2 border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover hover:border-border-strong'}`}
                >
                  {img.file_name}
                </a>
@@ -175,17 +178,17 @@ export default function ReviewQueuePage() {
            </div>
          </div>
          
-         <div className="p-6 border-t border-white/5 flex flex-col gap-4 bg-black/20">
-            <button onClick={() => handleUpdateStatus('approved')} className="w-full py-3 bg-green-500/10 text-green-400 border border-green-500/30 rounded-xl font-bold hover:bg-green-500/20 hover:border-green-500/50 hover:shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all flex justify-center items-center gap-2">
-               <span className="text-lg">✓</span> Approve
+         <div className="p-6 border-t border-border flex flex-col gap-3 bg-surface-2">
+            <button onClick={() => handleUpdateStatus('approved')} className="w-full py-2.5 bg-transparent text-accent-green border border-accent-green/50 rounded-md font-display font-medium hover:bg-accent-green/10 transition-all duration-150 ease-out flex justify-center items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring">
+               <Check size={18} strokeWidth={1.5} /> Approve
             </button>
-            <button onClick={() => handleUpdateStatus('flagged')} className="w-full py-3 bg-warn/10 text-warn border border-warn/30 rounded-xl font-bold hover:bg-warn/20 hover:border-warn/50 hover:shadow-[0_0_15px_rgba(244,63,94,0.3)] transition-all flex justify-center items-center gap-2">
-               <span className="text-lg">✕</span> Flag Issues
+            <button onClick={() => handleUpdateStatus('flagged')} className="w-full py-2.5 bg-transparent text-accent-magenta border border-accent-magenta/50 rounded-md font-display font-medium hover:bg-accent-magenta/10 transition-all duration-150 ease-out flex justify-center items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring">
+               <X size={18} strokeWidth={1.5} /> Flag Issues
             </button>
          </div>
       </div>
       
-      <div className="flex-1 relative z-10 bg-black/40">
+      <div className="flex-1 relative z-10 bg-surface-2">
         <AnnotationCanvas 
           imgSrc={imgSrc} 
           classes={classes} 

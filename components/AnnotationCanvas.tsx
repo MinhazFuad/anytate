@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 type BBox = [number, number, number, number] // ymin, xmin, ymax, xmax (0-1000)
 
@@ -16,6 +17,7 @@ interface BoxWithClass extends PendingBox {
   class_key: string
   label: string
   color: string
+  fcot?: any
 }
 
 export default function AnnotationCanvas({ 
@@ -38,6 +40,17 @@ export default function AnnotationCanvas({
   const imgRef = useRef<HTMLImageElement>(null)
   
   const [boxes, setBoxes] = useState<BoxWithClass[]>([])
+  const [past, setPast] = useState<BoxWithClass[][]>([])
+  const [future, setFuture] = useState<BoxWithClass[][]>([])
+
+  const setBoxesWithHistory = (newBoxes: BoxWithClass[] | ((prev: BoxWithClass[]) => BoxWithClass[])) => {
+    setBoxes(prevBoxes => {
+      const resolved = typeof newBoxes === 'function' ? newBoxes(prevBoxes) : newBoxes
+      setPast(p => [...p, prevBoxes])
+      setFuture([])
+      return resolved
+    })
+  }
   const [pendingBox, setPendingBox] = useState<PendingBox | null>(null)
   const [drawing, setDrawing] = useState(false)
   const [startPos, setStartPos] = useState({ x: 0, y: 0 })
@@ -67,7 +80,8 @@ export default function AnnotationCanvas({
         px, py, pw, ph,
         class_key: ib.class_key,
         label: cls?.display_name || ib.class_key,
-        color: cls?.color || '#ffffff'
+        color: cls?.color || '#ffffff',
+        fcot: ib.fcot || cls?.fcot || {} // hydrate fcot from DB or fallback to current taxonomy class fcot
       }
     })
     setBoxes(hydrated)
@@ -115,26 +129,35 @@ export default function AnnotationCanvas({
     // Draw committed boxes
     boxes.forEach((b, i) => {
       ctx.strokeStyle = b.color
-      ctx.lineWidth = 2
+      ctx.lineWidth = i === selectedBoxIndex ? 2.5 : 1.5
       ctx.strokeRect(b.px, b.py, b.pw, b.ph)
-      ctx.fillStyle = b.color + '1f'
-      ctx.fillRect(b.px, b.py, b.pw, b.ph)
+      
+      if (i === selectedBoxIndex) {
+        ctx.fillStyle = b.color + '26' // 15% opacity
+        ctx.fillRect(b.px, b.py, b.pw, b.ph)
+        // Draw 4 resize handles
+        const handles = [
+          [b.px, b.py], [b.px + b.pw, b.py], [b.px, b.py + b.ph], [b.px + b.pw, b.py + b.ph]
+        ]
+        handles.forEach(([hx, hy]) => {
+          ctx.fillStyle = b.color
+          ctx.strokeStyle = 'var(--bg, #0A0C10)'
+          ctx.lineWidth = 1
+          ctx.fillRect(hx - 3, hy - 3, 6, 6)
+          ctx.strokeRect(hx - 3, hy - 3, 6, 6)
+        })
+      } else {
+        ctx.fillStyle = b.color + '00' // 0% opacity by default
+        ctx.fillRect(b.px, b.py, b.pw, b.ph)
+      }
       
       // Label
-      ctx.font = 'bold 13px sans-serif'
+      ctx.font = '600 11px "JetBrains Mono", monospace'
       const tw = ctx.measureText(`#${i+1} ${b.label}`).width
-      ctx.fillStyle = 'rgba(0,0,0,0.8)'
-      ctx.fillRect(b.px, b.py - 16, tw + 8, 21)
+      ctx.fillStyle = 'var(--bg, #0A0C10)'
+      ctx.fillRect(b.px, b.py - 18, tw + 8, 18)
       ctx.fillStyle = b.color
-      ctx.fillText(`#${i+1} ${b.label}`, b.px + 4, b.py + 3)
-      // Highlight selected box
-      if (i === selectedBoxIndex) {
-        ctx.strokeStyle = '#ffffff'
-        ctx.lineWidth = 3
-        ctx.setLineDash([5, 5])
-        ctx.strokeRect(b.px, b.py, b.pw, b.ph)
-        ctx.setLineDash([])
-      }
+      ctx.fillText(`#${i+1} ${b.label}`, b.px + 4, b.py - 5)
     })
     
     // Draw pending box
@@ -151,10 +174,19 @@ export default function AnnotationCanvas({
       const col = lastClass ? classes.find(c => c.class_key === lastClass)?.color || '#00e5ff' : '#00e5ff'
       
       ctx.strokeStyle = col
-      ctx.lineWidth = 2
+      ctx.lineWidth = 1.5
       ctx.strokeRect(px, py, pw, ph)
-      ctx.fillStyle = col + '1a'
+      ctx.fillStyle = col + '14' // 8% opacity
       ctx.fillRect(px, py, pw, ph)
+
+      // Live coordinate readout
+      ctx.font = '12px "IBM Plex Mono", monospace'
+      const txt = `${Math.round(currentPos.x)}, ${Math.round(currentPos.y)}`
+      const tw2 = ctx.measureText(txt).width
+      ctx.fillStyle = 'var(--bg, rgba(10, 12, 16, 0.85))'
+      ctx.fillRect(currentPos.x + 12, currentPos.y + 12, tw2 + 8, 20)
+      ctx.fillStyle = 'var(--text-primary, #E6E8F0)'
+      ctx.fillText(txt, currentPos.x + 16, currentPos.y + 26)
     }
     
     if (pendingBox && pickerOpen) {
@@ -213,10 +245,12 @@ export default function AnnotationCanvas({
     const H = canvasRef.current!.height
     const W = canvasRef.current!.width
     
-    const ymin = Math.round(Math.min(sy, ey) / H * 1000)
-    const xmin = Math.round(Math.min(sx, ex) / W * 1000)
-    const ymax = Math.round(Math.max(sy, ey) / H * 1000)
-    const xmax = Math.round(Math.max(sx, ex) / W * 1000)
+    const clamp = (val: number) => Math.max(0, Math.min(1000, val))
+    
+    const ymin = clamp(Math.round(Math.min(sy, ey) / H * 1000))
+    const xmin = clamp(Math.round(Math.min(sx, ex) / W * 1000))
+    const ymax = clamp(Math.round(Math.max(sy, ey) / H * 1000))
+    const xmax = clamp(Math.round(Math.max(sx, ex) / W * 1000))
     
     const pBox: PendingBox = {
       bbox: [ymin, xmin, ymax, xmax],
@@ -239,7 +273,7 @@ export default function AnnotationCanvas({
   const commitBox = (box: PendingBox, classKey: string) => {
     const cls = classes.find(c => c.class_key === classKey)
     if (!cls) return
-    setBoxes([...boxes, { ...box, class_key: classKey, label: cls.display_name, color: cls.color }])
+    setBoxesWithHistory([...boxes, { ...box, class_key: classKey, label: cls.display_name, color: cls.color, fcot: cls.fcot }])
     setLastClass(classKey)
     setPendingBox(null)
     setPickerOpen(false)
@@ -252,16 +286,41 @@ export default function AnnotationCanvas({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Undo current session
-      if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+      // Redo (Ctrl+Shift+Z or Ctrl+Y)
+      if ((e.key.toLowerCase() === 'z' && e.shiftKey && (e.ctrlKey || e.metaKey)) || (e.key.toLowerCase() === 'y' && (e.ctrlKey || e.metaKey))) {
+        e.preventDefault()
         if (pickerOpen) return
-        setBoxes(b => b.slice(0, -1))
+        setFuture(f => {
+          if (f.length === 0) return f
+          const nextState = f[f.length - 1]
+          setBoxes(prev => {
+            setPast(p => [...p, prev])
+            return nextState
+          })
+          return f.slice(0, -1)
+        })
+        return
+      }
+
+      // Undo (Ctrl+Z)
+      if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+        e.preventDefault()
+        if (pickerOpen) return
+        setPast(p => {
+          if (p.length === 0) return p
+          const prevState = p[p.length - 1]
+          setBoxes(prev => {
+            setFuture(fut => [...fut, prev])
+            return prevState
+          })
+          return p.slice(0, -1)
+        })
         return
       }
       
       // Delete selected
       if ((e.key === 'Backspace' || e.key === 'Delete') && selectedBoxIndex !== null) {
-        setBoxes(b => b.filter((_, idx) => idx !== selectedBoxIndex))
+        setBoxesWithHistory(b => b.filter((_, idx) => idx !== selectedBoxIndex))
         setSelectedBoxIndex(null)
         return
       }
@@ -296,7 +355,8 @@ export default function AnnotationCanvas({
         ymin: b.bbox[0],
         xmin: b.bbox[1],
         ymax: b.bbox[2],
-        xmax: b.bbox[3]
+        xmax: b.bbox[3],
+        fcot: b.fcot
       })))
       
       if (currentState === lastSavedStateRef.current) return
@@ -331,71 +391,78 @@ export default function AnnotationCanvas({
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       
-      alert(data.action === 'deleted' ? 'Reverted to unannotated state. Reloading...' : 'Reverted to previous edit. Reloading...')
-      window.location.reload()
+      toast.success(data.action === 'deleted' ? 'Reverted to unannotated state.' : 'Reverted to previous edit.')
+      setTimeout(() => window.location.reload(), 1000)
     } catch(err: any) {
-      alert("Undo failed: " + err.message)
+      toast.error("Undo failed: " + err.message)
     }
   }
 
   return (
-    <div className="relative flex h-full w-full flex-col bg-zinc-950">
-      <div className="flex p-4 bg-zinc-900 border-b border-white/10 items-center justify-between z-10">
-        <div className="text-sm font-semibold">Annotations: {boxes.length}</div>
-        <div className="flex gap-4">
+    <div className="relative flex h-full w-full flex-col bg-bg">
+      <div className="flex px-4 py-2 bg-surface border-b border-border items-center justify-between z-10">
+        <div className="text-[13px] font-display font-medium text-text-primary flex items-center gap-2">
+           <span className="text-text-secondary">Instances:</span> 
+           <span className="font-data bg-surface-2 px-2 py-0.5 rounded-sm border border-border">{boxes.length}</span>
+        </div>
+        <div className="flex gap-2">
           {initialBoxes && initialBoxes.length > 0 && (
-            <button onClick={handleServerUndo} className="px-4 py-2 bg-warn/20 text-warn border border-warn/30 rounded font-semibold hover:bg-warn/30">Undo Server Change</button>
+            <button onClick={handleServerUndo} className="h-9 px-4 flex items-center bg-transparent border border-accent-red text-accent-red rounded text-[13px] font-display font-medium hover:bg-accent-red/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring">
+              Undo Server Edit
+            </button>
           )}
-          <button onClick={() => onSave(boxes)} className="px-4 py-2 bg-accent text-background rounded font-semibold hover:opacity-90">Save Image</button>
-          <button onClick={onSkip} className="px-4 py-2 bg-white/10 text-white rounded font-semibold hover:bg-white/20">Skip Image</button>
+          <button onClick={onSkip} className="h-9 px-4 flex items-center bg-transparent border border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded text-[13px] font-display font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring">Skip</button>
+          <button onClick={() => onSave(boxes)} className="h-9 px-4 flex items-center bg-accent-cyan text-bg border-none hover:bg-accent-cyan-hover rounded text-[13px] font-display font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring">
+            Save & Next <span className="ml-2 px-1.5 py-0.5 bg-bg/20 text-bg/90 rounded-[2px] text-[11px] font-data font-semibold">[Enter]</span>
+          </button>
         </div>
       </div>
       
-      <div ref={containerRef} className="flex-1 relative overflow-hidden select-none cursor-crosshair flex items-center justify-center p-8">
+      <div ref={containerRef} className="flex-1 relative overflow-hidden select-none cursor-crosshair flex items-center justify-center p-4 bg-surface-2">
         {imgSrc ? (
           <canvas
             ref={canvasRef}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
-            className="shadow-2xl"
+            className="border border-border bg-bg shadow-sm"
           />
         ) : (
-          <div className="animate-pulse w-full h-full bg-white/5 rounded-xl"></div>
+          <div className="animate-pulse w-full h-full bg-surface rounded max-w-4xl max-h-[80vh]"></div>
         )}
       </div>
 
       {pickerOpen && pendingBox && (
         <div 
-          className="absolute z-50 bg-surface border border-white/20 rounded-xl p-2 shadow-2xl backdrop-blur-xl"
+          className="fixed z-50 bg-surface-2 border border-border-strong rounded-lg p-2 shadow-[0_8px_24px_var(--shadow-color)]"
           style={{ 
             left: Math.min(pickerPos.x + 15, typeof window !== 'undefined' ? window.innerWidth - 320 : 0),
             top: Math.min(pickerPos.y, typeof window !== 'undefined' ? window.innerHeight - (classes.length * 40 + 60) : 0),
             width: 300
           }}
         >
-          <div className="text-xs font-semibold text-muted mb-2 px-2 uppercase">Select Class</div>
+          <div className="text-[11px] font-display font-medium text-text-secondary mb-2 px-2 uppercase tracking-[0.03em]">Select Class</div>
           <div className="flex flex-col gap-1 max-h-[60vh] overflow-y-auto">
             {classes.map(c => (
               <button
                 key={c.class_key}
                 onClick={() => commitBox(pendingBox, c.class_key)}
-                className={`flex items-center justify-between p-2 rounded hover:bg-white/10 transition-colors ${c.class_key === lastClass ? 'bg-white/5' : ''}`}
+                className={`flex items-center justify-between p-2 rounded hover:bg-surface-hover transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring ${c.class_key === lastClass ? 'ring-1 ring-accent-cyan bg-surface-hover' : ''}`}
               >
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.color }}></div>
-                  <span className="text-sm">{c.display_name}</span>
+                  <span className="text-sm font-body text-text-primary">{c.display_name}</span>
                 </div>
                 {c.shortcut_key && (
-                  <span className="text-xs text-muted border border-white/10 rounded px-1.5 py-0.5 bg-background font-mono">
+                  <span className="text-xs text-text-secondary bg-surface border border-border rounded-sm px-1.5 py-0.5 font-data">
                     {c.shortcut_key.toUpperCase()}
                   </span>
                 )}
               </button>
             ))}
           </div>
-          <div className="mt-2 pt-2 border-t border-white/10 text-center">
-            <button onClick={cancelPicker} className="text-xs text-muted hover:text-white">Esc to Cancel</button>
+          <div className="mt-2 pt-2 border-t border-border text-center">
+            <button onClick={cancelPicker} className="text-xs text-text-tertiary hover:text-text-secondary font-display font-medium">Esc to Cancel</button>
           </div>
         </div>
       )}

@@ -10,7 +10,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { project_id, format = 'anytate' } = await request.json()
+    const { project_id, format = 'anytate', folder_id } = await request.json()
     if (!project_id) return NextResponse.json({ error: 'Missing project_id' }, { status: 400 })
 
     // 1. Get project info
@@ -28,12 +28,23 @@ export async function POST(request: Request) {
 
     // 3. Fetch all annotations
     // We export any annotation that exists. Or maybe only 'approved'? Let's export all for now.
-    const { data: annotations } = await supabase.from('annotations')
-      .select('grounded_instances, images!inner(file_name, width, height)')
+    let query = supabase.from('annotations')
+      .select('grounded_instances, scene_context, images!inner(file_name, width, height, drive_folder_id)')
       .eq('images.project_id', project_id)
+      
+    if (folder_id) {
+       // If folder_id is "unknown", filter for null or missing. Otherwise exact match.
+       if (folder_id === 'unknown') {
+         query = query.is('images.drive_folder_id', null)
+       } else {
+         query = query.eq('images.drive_folder_id', folder_id)
+       }
+    }
+
+    const { data: annotations } = await query
 
     if (!annotations || annotations.length === 0) {
-      return NextResponse.json({ error: 'No annotations found' }, { status: 400 })
+      return NextResponse.json({ error: 'No annotations found for this selection' }, { status: 400 })
     }
 
     const files: { name: string, content: string }[] = []
@@ -43,6 +54,9 @@ export async function POST(request: Request) {
        zipFilename = `${project.name.replace(/\s+/g, '_')}_anytate.zip`
        annotations.forEach((ann: any) => {
          const baseName = ann.images.file_name.substring(0, ann.images.file_name.lastIndexOf('.')) || ann.images.file_name
+         if (!ann.scene_context || Object.keys(ann.scene_context).length === 0) {
+            delete ann.scene_context
+         }
          files.push({ name: `${baseName}.json`, content: JSON.stringify(ann, null, 2) })
        })
     } else if (format === 'yolo') {
@@ -96,6 +110,10 @@ export async function POST(request: Request) {
                iscrowd: 0
             } as never)
          })
+         
+         if (ann.scene_context && Object.keys(ann.scene_context).length > 0) {
+            (coco as any).images[imgIdx].scene_context = ann.scene_context
+         }
        })
        // If user insists on separate files per image for COCO, they usually mean they want native format.
        // We'll return 1 file for COCO since it's meant to be a monolithic format.

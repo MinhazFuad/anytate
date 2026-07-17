@@ -1,184 +1,342 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
-import { taxonomyImportSchema } from '@/lib/zodSchemas'
+import { createClient } from '@/lib/supabase/client'
+import Link from 'next/link'
+import ThemeToggle from '@/components/ThemeToggle'
+import { toast } from 'sonner'
+import { ArrowLeft, Plus } from 'lucide-react'
+
+type FCOT = {
+  "Primary Cue": string;
+  "Observation": string;
+  "Contrastive Rules": string[];
+  "Static-Frame Disambiguation": string;
+  "Decision Rule": string;
+  "Fallback Rule": string;
+  "Failure Mode": string;
+  "Instance Note": string;
+  "Conclusion": string;
+}
+
+type ClassData = {
+  id?: string;
+  class_key: string;
+  display_name: string;
+  color: string;
+  shortcut_key: string;
+  fcot: FCOT;
+}
+
+const emptyFcot: FCOT = {
+  "Primary Cue": "",
+  "Observation": "",
+  "Contrastive Rules": [""],
+  "Static-Frame Disambiguation": "",
+  "Decision Rule": "",
+  "Fallback Rule": "",
+  "Failure Mode": "",
+  "Instance Note": "",
+  "Conclusion": ""
+}
 
 export default function TaxonomyBuilderPage() {
   const { id } = useParams()
   const router = useRouter()
   const supabase = createClient()
   
-  const [classes, setClasses] = useState<any[]>([])
+  const [classes, setClasses] = useState<ClassData[]>([])
   const [loading, setLoading] = useState(true)
+  const [mode, setMode] = useState<'form' | 'json'>('form')
   const [jsonInput, setJsonInput] = useState('')
-  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [version, setVersion] = useState<number | null>(null)
+  const [versionName, setVersionName] = useState('')
+  const [history, setHistory] = useState<any[]>([])
 
   useEffect(() => {
-    async function loadActiveTaxonomy() {
-      // Get active version
-      const { data: versionData } = await supabase
+    async function loadTaxonomy() {
+      // Get active taxonomy version for this project
+      const { data: vData } = await supabase
         .from('taxonomy_versions')
         .select('id, version_number')
         .eq('project_id', id)
         .eq('is_active', true)
         .single()
         
-      if (versionData) {
-        // Get classes for this version
-        const { data: classesData } = await supabase
+      if (vData) {
+        setVersion(vData.version_number)
+        const { data: cData } = await supabase
           .from('taxonomy_classes')
           .select('*')
-          .eq('taxonomy_version_id', versionData.id)
+          .eq('taxonomy_version_id', vData.id)
           .order('sort_order')
           
-        if (classesData) {
-          setClasses(classesData)
-          
-          // Reconstruct JSON for import/export area
-          const reconstructedJson: Record<string, any> = {}
-          classesData.forEach(c => {
-            reconstructedJson[c.class_key] = {
-              display: c.display_name,
-              fcot: c.fcot
-            }
-          })
-          setJsonInput(JSON.stringify(reconstructedJson, null, 2))
-        }
+        if (cData) setClasses(cData as ClassData[])
+      } else {
+        setVersion(0)
       }
       setLoading(false)
     }
-    loadActiveTaxonomy()
+    loadTaxonomy()
   }, [id, supabase])
 
+  const addClass = () => {
+    setClasses([...classes, {
+      class_key: `class_${classes.length + 1}`,
+      display_name: `New Class ${classes.length + 1}`,
+      color: '#00e5ff',
+      shortcut_key: String((classes.length + 1) % 10), // 1-9, then 0
+      fcot: { ...emptyFcot }
+    }])
+  }
+
+  const removeClass = (index: number) => {
+    setClasses(classes.filter((_, i) => i !== index))
+  }
+
+  const updateClass = (index: number, field: string, value: any) => {
+    const newClasses = [...classes]
+    newClasses[index] = { ...newClasses[index], [field]: value }
+    setClasses(newClasses)
+  }
+
+  const updateFcot = (index: number, field: keyof FCOT, value: any) => {
+    const newClasses = [...classes]
+    newClasses[index] = { 
+      ...newClasses[index], 
+      fcot: { ...newClasses[index].fcot, [field]: value } 
+    }
+    setClasses(newClasses)
+  }
+
   const handleJsonImport = () => {
-    setError('')
     try {
       const parsed = JSON.parse(jsonInput)
-      const validated = taxonomyImportSchema.parse(parsed)
+      const importedClasses: ClassData[] = []
       
-      const newClasses = Object.entries(validated).map(([key, val], index) => ({
-        class_key: key,
-        display_name: val.display,
-        color: '#00e5ff', // default or extract if available
-        shortcut_key: index < 9 ? String(index + 1) : 'o',
-        fcot: val.fcot,
-        sort_order: index
-      }))
+      // Assume notebook TAXONOMY format: { "class_key": { "display": "...", "fcot": { ... } } }
+      let i = 0
+      for (const [key, value] of Object.entries(parsed)) {
+        const val = value as any
+        importedClasses.push({
+          class_key: key,
+          display_name: val.display || val.display_name || key,
+          color: val.color || '#00e5ff',
+          shortcut_key: val.shortcut_key || String((i + 1) % 10),
+          fcot: val.fcot || { ...emptyFcot }
+        })
+        i++
+      }
       
-      setClasses(newClasses)
-      alert("JSON Validated! Click 'Publish New Version' to save.")
-    } catch (err: any) {
-      setError(err.message || 'Invalid JSON format')
+      setClasses(importedClasses)
+      setMode('form')
+    } catch(e: any) {
+      toast.error("Invalid JSON: " + e.message)
     }
   }
 
-  const handlePublish = async () => {
-    setLoading(true)
+  const handleSave = async () => {
+    if (classes.length === 0) {
+       toast.error("You must create at least one class before saving.")
+       return
+    }
+    setSaving(true)
     try {
-      // 1. Get current max version
-      const { data: versions } = await supabase
-        .from('taxonomy_versions')
-        .select('version_number, id')
-        .eq('project_id', id)
-        .order('version_number', { ascending: false })
-        .limit(1)
-        
-      const nextVersionNum = versions && versions.length > 0 ? versions[0].version_number + 1 : 1
-
-      // 2. Insert new version
-      const { data: newVersion, error: versionErr } = await supabase
+      // 1. Create a new taxonomy version
+      const newVersionNum = (version || 0) + 1
+      const { data: newVersion, error: vErr } = await supabase
         .from('taxonomy_versions')
         .insert({
-          project_id: id as string,
-          version_number: nextVersionNum,
+          project_id: id,
+          version_number: newVersionNum,
           is_active: true
         })
         .select()
         .single()
         
-      if (versionErr) throw versionErr
+      if (vErr) throw vErr
 
-      // 3. Deactivate old versions
+      // 2. Insert new classes
+      if (classes.length > 0) {
+        const insertData = classes.map((c, i) => ({
+          taxonomy_version_id: newVersion.id,
+          class_key: c.class_key,
+          display_name: c.display_name,
+          color: c.color,
+          shortcut_key: c.shortcut_key,
+          fcot: c.fcot,
+          sort_order: i
+        }))
+        
+        const { error: cErr } = await supabase.from('taxonomy_classes').insert(insertData)
+        if (cErr) throw cErr
+      }
+
+      // 3. Mark old versions inactive
       await supabase
         .from('taxonomy_versions')
         .update({ is_active: false })
         .eq('project_id', id)
         .neq('id', newVersion.id)
-
-      // 4. Insert classes mapped to new version
-      const insertData = classes.map(c => ({
-        taxonomy_version_id: newVersion.id,
-        class_key: c.class_key,
-        display_name: c.display_name,
-        color: c.color || '#ffffff',
-        shortcut_key: c.shortcut_key,
-        fcot: c.fcot,
-        sort_order: c.sort_order
-      }))
-      
-      const { error: classErr } = await supabase.from('taxonomy_classes').insert(insertData)
-      if (classErr) throw classErr
-      
-      alert(`Published version ${nextVersionNum}!`)
-      router.push(`/projects/${id}`)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
+        
+      toast.success(`Taxonomy version ${newVersionNum} saved successfully!`)
+      if (version === 0) {
+        router.push(`/projects/${id}/dashboard`)
+      } else {
+        window.location.reload()
+      }
+    } catch (e: any) {
+      toast.error("Error saving: " + e.message)
     }
+    setSaving(false)
   }
 
+  if (loading) return <div className="p-8 text-white">Loading taxonomy...</div>
+
   return (
-    <div className="min-h-screen bg-background p-8 text-text">
-      <div className="mx-auto max-w-4xl">
-        <h1 className="mb-8 text-3xl font-bold">Taxonomy Builder</h1>
+    <div className="min-h-screen bg-bg text-text-primary p-8 font-body">
+      <div className="max-w-[1280px] mx-auto space-y-8">
         
-        <div className="mb-8 rounded-xl border border-white/10 bg-surface/50 p-6 shadow-lg">
-          <h2 className="mb-4 text-xl font-semibold">JSON Import</h2>
-          <p className="mb-4 text-sm text-muted">
-            Paste your taxonomy JSON here to validate and import. This creates a new version; existing annotations will remain on their original version.
-          </p>
-          <textarea
-            className="h-64 w-full rounded-lg border border-white/10 bg-background p-4 font-mono text-sm focus:border-accent focus:outline-none"
-            value={jsonInput}
-            onChange={(e) => setJsonInput(e.target.value)}
-          />
-          <div className="mt-4 flex gap-4">
-            <button
-              onClick={handleJsonImport}
-              className="rounded-lg bg-surface px-4 py-2 text-sm font-semibold border border-white/10 hover:bg-white/5"
-            >
-              Validate JSON
-            </button>
-            <button
-              onClick={handlePublish}
-              disabled={loading || classes.length === 0}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-background hover:opacity-90 disabled:opacity-50"
-            >
-              {loading ? 'Publishing...' : 'Publish New Version'}
-            </button>
-          </div>
-          {error && <div className="mt-4 text-warn text-sm">{error}</div>}
+        <div className="flex items-center justify-between mb-4">
+           {version === 0 ? (
+              <div className="text-text-secondary text-sm font-display font-medium">
+                 Please create your initial Taxonomy Schema.
+              </div>
+           ) : (
+              <Link href={`/projects/${id}/dashboard`} className="text-text-secondary hover:text-text-primary text-sm font-display font-medium transition-all duration-150 ease-out flex items-center gap-2 w-fit">
+                 <ArrowLeft size={18} strokeWidth={1.5} /> Back to Dashboard
+              </Link>
+           )}
+           <ThemeToggle />
         </div>
         
-        <div className="rounded-xl border border-white/10 bg-surface p-6 shadow-lg">
-          <h2 className="mb-4 text-xl font-semibold">Current Classes ({classes.length})</h2>
-          <div className="flex flex-col gap-2">
-            {classes.map((c, i) => (
-              <div key={i} className="flex items-center justify-between rounded-lg border border-white/5 bg-background p-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-4 w-4 rounded-full" style={{ backgroundColor: c.color || '#fff' }} />
-                  <span className="font-semibold">{c.display_name}</span>
-                  <span className="rounded bg-accent/20 px-2 py-1 text-xs text-accent">Key: {c.class_key}</span>
-                </div>
-                <div className="text-xs text-muted">
-                  Shortcut: <b>{c.shortcut_key}</b>
-                </div>
-              </div>
-            ))}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-display font-semibold text-text-primary">Taxonomy Builder</h1>
+            <p className="text-sm text-text-secondary font-display">Current Version: {version ? `v${version}` : 'None'}</p>
           </div>
+          
+          <div className="flex items-center gap-4">
+            <button 
+               onClick={() => setMode(mode === 'form' ? 'json' : 'form')}
+               className="px-4 py-2 bg-transparent border border-border rounded-md text-text-primary text-sm font-display font-medium hover:bg-surface-hover hover:border-accent-cyan transition-all duration-150 ease-out"
+            >
+               {mode === 'form' ? 'Switch to JSON Import' : 'Switch to Form Builder'}
+            </button>
+            <input 
+              type="text"
+              value={versionName}
+              onChange={e => setVersionName(e.target.value)}
+              placeholder={`Version ${(version || 0) + 1} Name`}
+              className="bg-surface border border-border rounded-md px-4 py-2 text-sm font-body text-text-primary placeholder:text-text-tertiary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring"
+            />
+            <button 
+              onClick={mode === 'json' ? handleJsonImport : handleSave}
+              disabled={saving || (mode === 'form' && classes.length === 0)}
+              className="px-6 py-2 bg-accent-cyan text-bg font-display font-medium rounded-md hover:bg-accent-cyan-hover disabled:bg-surface-2 disabled:text-text-tertiary transition-all duration-150 ease-out"
+            >
+              {saving ? 'Saving...' : mode === 'json' ? 'Validate & Import JSON' : 'Publish New Version'}
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-surface border border-border rounded-lg p-6">
+          <p className="text-sm text-text-secondary mb-6 font-body">
+            Define your FCOT (Full Chain of Thought) schema here. When you publish, a new version is created. Existing annotations will retain their original version.
+          </p>
+
+          {mode === 'json' ? (
+             <div className="space-y-4">
+               <textarea 
+                 className="w-full h-96 bg-surface-2 border border-border-strong rounded-md p-4 font-data text-sm text-text-primary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring"
+                 placeholder={'{\n  "plastic_bottle": {\n    "display": "🥤 Plastic Bottle",\n    "fcot": { ... }\n  }\n}'}
+                 value={jsonInput}
+                 onChange={e => setJsonInput(e.target.value)}
+               />
+               <button onClick={handleJsonImport} className="px-4 py-2 bg-transparent border border-border hover:bg-surface-hover text-text-primary font-display font-medium rounded-md">
+                 Validate & Import JSON
+               </button>
+             </div>
+          ) : (
+             <div className="space-y-6">
+               {classes.map((cls, i) => (
+                 <div key={i} className="border border-border rounded-lg bg-surface overflow-hidden">
+                   <div className="p-4 bg-surface-2 flex items-center justify-between border-b border-border">
+                     <div className="flex items-center gap-4">
+                       <input 
+                         type="text" 
+                         value={cls.display_name} 
+                         onChange={e => updateClass(i, 'display_name', e.target.value)}
+                         className="bg-surface border border-border rounded-md p-2 font-display font-medium text-base text-text-primary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring flex-1"
+                         placeholder="Display Name"
+                       />
+                       <input 
+                         type="color" 
+                         value={cls.color} 
+                         onChange={e => updateClass(i, 'color', e.target.value)}
+                         className="w-8 h-8 rounded-sm cursor-pointer border-0 p-0"
+                       />
+                     </div>
+                     <button onClick={() => removeClass(i)} className="text-accent-red hover:bg-accent-red/10 px-3 py-1.5 rounded-md font-display font-medium text-sm transition-all duration-150 ease-out">
+                       Remove Class
+                     </button>
+                   </div>
+                   
+                   <div className="p-4 grid grid-cols-2 gap-4">
+                     <div className="col-span-1 space-y-2">
+                       <label className="text-[11px] text-text-secondary uppercase font-display font-medium tracking-[0.03em]">Class Key (Internal)</label>
+                       <input 
+                         type="text" 
+                         value={cls.class_key} 
+                         onChange={e => updateClass(i, 'class_key', e.target.value)}
+                         className="w-full bg-surface-2 border border-border rounded-md p-2 text-sm font-data text-text-primary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring"
+                       />
+                     </div>
+                     <div className="col-span-1 space-y-2">
+                       <label className="text-[11px] text-text-secondary uppercase font-display font-medium tracking-[0.03em]">Shortcut Key</label>
+                       <input 
+                         type="text" 
+                         value={cls.shortcut_key} 
+                         onChange={e => updateClass(i, 'shortcut_key', e.target.value)}
+                         className="w-full bg-surface-2 border border-border rounded-md p-2 text-sm font-data text-text-primary uppercase focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring"
+                         maxLength={1}
+                       />
+                     </div>
+
+                     <div className="col-span-2 mt-4 pt-4 border-t border-border space-y-4">
+                        <div className="text-sm font-display font-medium text-accent-cyan">FCOT Schema Definition</div>
+                        
+                        {(Object.keys(emptyFcot) as Array<keyof FCOT>).map(fcotField => (
+                          <div key={fcotField} className="space-y-1">
+                            <label className="text-[11px] text-text-secondary font-display font-medium uppercase tracking-[0.03em]">{fcotField}</label>
+                            {fcotField === 'Contrastive Rules' ? (
+                               <textarea 
+                                 value={(cls.fcot[fcotField] || []).join('\n')} 
+                                 onChange={e => updateFcot(i, fcotField, e.target.value.split('\n'))}
+                                 className="w-full h-24 bg-surface-2 border border-border rounded-md p-3 text-[14px] leading-[1.6] font-body text-text-primary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring"
+                                 placeholder="One rule per line..."
+                               />
+                            ) : (
+                               <textarea 
+                                 value={cls.fcot[fcotField] as string} 
+                                 onChange={e => updateFcot(i, fcotField, e.target.value)}
+                                 className="w-full h-16 bg-surface-2 border border-border rounded-md p-3 text-[14px] leading-[1.6] font-body text-text-primary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring"
+                               />
+                            )}
+                          </div>
+                        ))}
+                     </div>
+                   </div>
+                 </div>
+               ))}
+               
+               <button onClick={addClass} className="w-full py-4 border-2 border-dashed border-border rounded-lg text-text-secondary hover:text-text-primary hover:border-border-strong hover:bg-surface-hover font-display font-medium transition-all duration-150 ease-out flex items-center justify-center gap-2">
+                 <Plus size={18} strokeWidth={1.5} /> Add New Class
+               </button>
+             </div>
+          )}
         </div>
       </div>
     </div>

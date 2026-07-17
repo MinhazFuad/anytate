@@ -1,67 +1,98 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #09090b;
-  --surface: rgba(24, 24, 27, 0.4);
-  --surface-hover: rgba(39, 39, 42, 0.6);
-  --text: #f8fafc;
-  --muted: #94a3b8;
-  --accent: #38bdf8;
-  --accent-glow: rgba(56, 189, 248, 0.5);
-  --warn: #f43f5e;
+  /* Light mode (default variables fallback, but wait, the guide says dark mode is default) */
+  /* Actually, the guide says dark mode is default. We will set light mode in :root, and dark mode in .dark */
+  --bg: #F6F7FB;
+  --surface: #FFFFFF;
+  --surface-2: #EEF0F6;
+  --surface-hover: #E4E7F0;
+  --border: #DDE1EA;
+  --border-strong: #C3C9D9;
+  --text-primary: #12141C;
+  --text-secondary: #565D75;
+  --text-tertiary: #8C93AB;
+  --accent-cyan: #0097A7;
+  --accent-cyan-hover: #007C8A;
+  --accent-cyan-muted: rgba(0,151,167,0.10);
+  --accent-magenta: #D81B60;
+  --accent-amber: #C47F00;
+  --accent-green: #0F9D68;
+  --accent-red: #D92D4C;
+  --focus-ring: rgba(0,151,167,0.35);
+  --shadow-color: rgba(30,34,50,0.12);
+}
+
+.dark {
+  --bg: #0A0C10;
+  --surface: #12151C;
+  --surface-2: #171B24;
+  --surface-hover: #1C212C;
+  --border: #262B38;
+  --border-strong: #363C4D;
+  --text-primary: #E6E8F0;
+  --text-secondary: #9AA3C4;
+  --text-tertiary: #5B6178;
+  --accent-cyan: #00E5FF;
+  --accent-cyan-hover: #33ECFF;
+  --accent-cyan-muted: rgba(0,229,255,0.12);
+  --accent-magenta: #FF4081;
+  --accent-amber: #FFB020;
+  --accent-green: #2EE6A8;
+  --accent-red: #FF5470;
+  --focus-ring: rgba(0,229,255,0.35);
+  --shadow-color: rgba(0,0,0,0.5);
 }
 
 @theme inline {
   --color-background: var(--bg);
-  --color-foreground: var(--text);
+  --color-foreground: var(--text-primary);
+  
+  --color-bg: var(--bg);
   --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-surface-hover: var(--surface-hover);
-  --color-text: var(--text);
-  --color-muted: var(--muted);
-  --color-accent: var(--accent);
-  --color-warn: var(--warn);
+  
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  
+  --color-accent-cyan: var(--accent-cyan);
+  --color-accent-cyan-hover: var(--accent-cyan-hover);
+  --color-accent-cyan-muted: var(--accent-cyan-muted);
+  --color-accent-magenta: var(--accent-magenta);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-green: var(--accent-green);
+  --color-accent-red: var(--accent-red);
+  
+  --color-focus-ring: var(--focus-ring);
+  
+  /* Re-alias tailwind generic colors for convenience */
+  --color-accent: var(--accent-cyan);
+  --color-warn: var(--accent-red);
+  --color-muted: var(--text-secondary);
+
+}
+
+@utility font-display {
+  font-family: var(--font-display, ui-monospace, monospace);
+}
+
+@utility font-body {
+  font-family: var(--font-body, ui-sans-serif, sans-serif);
+}
+
+@utility font-data {
+  font-family: var(--font-data, ui-monospace, monospace);
 }
 
 body {
   background-color: var(--bg);
-  background-image: 
-    radial-gradient(circle at 15% 50%, rgba(56, 189, 248, 0.05), transparent 25%),
-    radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.05), transparent 25%);
-  color: var(--text);
-  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--text-primary);
+  /* The layout sets font-family */
 }
 
-/* Glassmorphism Utilities */
-.glass {
-  background: var(--surface);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-}
-
-.glass-interactive {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.glass-interactive:hover {
-  background: var(--surface-hover);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2), 0 0 15px var(--accent-glow);
-}
-
-.btn-premium {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(168, 85, 247, 0.2));
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.1);
-  transition: all 0.3s ease;
-}
-
-.btn-premium:hover {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.4), rgba(168, 85, 247, 0.4));
-  border: 1px solid rgba(56, 189, 248, 0.6);
-  box-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
-  transform: translateY(-1px);
-}
+/* Remove glassmorphism utilities to match the strict flat design guide */

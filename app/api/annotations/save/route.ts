@@ -16,24 +16,47 @@ export async function POST(request: Request) {
     // 1. Zod Validation (SERVER-SIDE)
     const validatedData = annotationSaveSchema.parse(body)
 
-    // 2. Look up the active taxonomy and scene metadata versions for this project
-    const { data: taxVersion, error: taxErr } = await supabase
-      .from('taxonomy_versions')
-      .select('id')
-      .eq('project_id', validatedData.project_id)
-      .eq('is_active', true)
-      .single()
-
-    const { data: sceneVersion, error: sceneErr } = await supabase
-      .from('scene_metadata_field_sets')
-      .select('id')
-      .eq('project_id', validatedData.project_id)
-      .eq('is_active', true)
-      .single()
-
-    if (taxErr || sceneErr || !taxVersion || !sceneVersion) {
-      return NextResponse.json({ error: 'Missing active taxonomy or scene metadata version for this project' }, { status: 400 })
+    // 2. Look up the active taxonomy and scene metadata versions for this project if not provided
+    let taxVersionId = validatedData.taxonomy_version_id
+    if (!taxVersionId) {
+      const { data: taxVersion } = await supabase
+        .from('taxonomy_versions')
+        .select('id')
+        .eq('project_id', validatedData.project_id)
+        .eq('is_active', true)
+        .single()
+      if (taxVersion) taxVersionId = taxVersion.id
     }
+
+    let sceneVersionId = validatedData.scene_metadata_field_set_id
+    if (!sceneVersionId) {
+      const { data: sceneVersion } = await supabase
+        .from('scene_metadata_field_sets')
+        .select('id')
+        .eq('project_id', validatedData.project_id)
+        .eq('is_active', true)
+        .single()
+      if (sceneVersion) sceneVersionId = sceneVersion.id
+    }
+
+    if (!taxVersionId) {
+      return NextResponse.json({ error: 'Missing taxonomy version' }, { status: 400 })
+    }
+
+    // 2.5 Calculate derived diagnostics
+    let primary_pollutant = "None"
+    if (validatedData.boxes.length > 0) {
+      const counts: Record<string, number> = {}
+      let maxCount = 0
+      for (const b of validatedData.boxes) {
+        counts[b.class_key] = (counts[b.class_key] || 0) + 1
+        if (counts[b.class_key] > maxCount) {
+          maxCount = counts[b.class_key]
+          primary_pollutant = b.class_key
+        }
+      }
+    }
+    const derived_diagnostics = { primary_pollutant }
 
     // 3. Check if annotation already exists
     const { data: existingAnnotation } = await supabase
@@ -49,9 +72,11 @@ export async function POST(request: Request) {
       annotationId = existingAnnotation.id
       
       const { error: updateErr } = await supabase.from('annotations').update({
-        taxonomy_version_id: taxVersion.id,
-        scene_metadata_field_set_id: sceneVersion.id,
+        taxonomy_version_id: taxVersionId,
+        scene_metadata_field_set_id: sceneVersionId || undefined,
         grounded_instances: validatedData.boxes,
+        scene_context: validatedData.scene_context || {},
+        derived_diagnostics: derived_diagnostics,
         annotator_id: user.id,
         updated_at: new Date().toISOString()
       }).eq('id', annotationId)
@@ -72,11 +97,11 @@ export async function POST(request: Request) {
       // It's a NEW save
       const { data: newAnn, error: insertErr } = await supabase.from('annotations').insert({
         image_id: validatedData.image_id,
-        taxonomy_version_id: taxVersion.id,
-        scene_metadata_field_set_id: sceneVersion.id,
+        taxonomy_version_id: taxVersionId,
+        scene_metadata_field_set_id: sceneVersionId || undefined,
         grounded_instances: validatedData.boxes,
-        scene_context: {},
-        derived_diagnostics: {},
+        scene_context: validatedData.scene_context || {},
+        derived_diagnostics: derived_diagnostics,
         annotator_id: user.id,
         status: 'pending'
       }).select().single()

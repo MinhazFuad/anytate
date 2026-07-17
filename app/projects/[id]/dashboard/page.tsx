@@ -4,66 +4,94 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import ThemeToggle from '@/components/ThemeToggle'
 import JSZip from 'jszip'
+import { toast } from 'sonner'
+import { ArrowLeft, Clock, Download } from 'lucide-react'
 
 export default function ProjectDashboardPage() {
   const { id } = useParams()
   const supabase = createClient()
   
-  const [loading, setLoading] = useState(true)
+  const [loadingStep, setLoadingStep] = useState<string>('Initializing...')
   const [project, setProject] = useState<any>(null)
   const [stats, setStats] = useState({ total: 0, pending: 0, done: 0, approved: 0, flagged: 0 })
 
   useEffect(() => {
     async function loadDashboard() {
       try {
+        setLoadingStep('Fetching project details...')
         const { data: p } = await supabase.from('projects').select('*').eq('id', id).single()
         setProject(p)
 
-        // 1. Sync missing images from Google Drive so the dashboard total is accurate
-        const listRes = await fetch(`/api/drive/list?folderId=${p.drive_image_folder_id}`)
-        const listData = await listRes.json()
-        
-        if (listRes.ok && listData.files) {
-          const { data: existingAll } = await supabase.from('images').select('drive_file_id').eq('project_id', id)
-          const existingIds = new Set(existingAll?.map(img => img.drive_file_id) || [])
-          
-          const missingFiles = listData.files.filter((f: any) => !existingIds.has(f.id))
-          
-          if (missingFiles.length > 0) {
-            const inserts = missingFiles.map((f: any) => ({
-              project_id: id as string,
-              drive_file_id: f.id,
-              file_name: f.name,
-              status: 'pending'
-            }))
-            await supabase.from('images').insert(inserts)
-          }
+        // Background: Sync missing images from Google Drive
+        if (p?.drive_image_folder_id) {
+          fetch(`/api/drive/list?folderId=${p.drive_image_folder_id}`)
+            .then(res => res.json())
+            .then(async listData => {
+              if (listData.files) {
+                const { data: existingAll } = await supabase.from('images').select('drive_file_id').eq('project_id', id)
+                const existingIds = new Set(existingAll?.map(img => img.drive_file_id) || [])
+                const missingFiles = listData.files.filter((f: any) => !existingIds.has(f.id))
+                if (missingFiles.length > 0) {
+                  const inserts = missingFiles.map((f: any) => ({
+                    project_id: id as string,
+                    drive_file_id: f.id,
+                    file_name: f.name,
+                    status: 'pending',
+                    drive_folder_id: p.drive_image_folder_id
+                  }))
+                  await supabase.from('images').insert(inserts)
+                  
+                  // Update the UI since this was a new project or had new files
+                  setStats(prev => ({
+                    ...prev,
+                    total: prev.total + missingFiles.length,
+                    pending: prev.pending + missingFiles.length
+                  }))
+                  toast.success(`Successfully synced ${missingFiles.length} new images from Drive!`)
+                }
+              }
+            }).catch(console.error)
         }
 
+        setLoadingStep('Counting images...')
         // Count images by status
-        const { data: images } = await supabase.from('images').select('id, status').eq('project_id', id)
-        const { data: anns } = await supabase.from('annotations').select('id, status').eq('image_id', 'in', `(${images?.map(i => i.id).join(',')} )`) // This is a bit hacky, let's just query normally
+        const { data: images } = await supabase.from('images').select('id, status').eq('project_id', id).eq('drive_folder_id', p.drive_image_folder_id)
         
+        let anns: any[] = [];
+        
+        setLoadingStep('Calculating stats...')
         // Let's do it safely
         if (images) {
-           const doneImages = images.filter(i => i.status === 'done')
-           const pendingImages = images.filter(i => i.status === 'pending')
+           const doneImages = images.filter((i: any) => i.status === 'done')
+           const pendingImages = images.filter((i: any) => i.status === 'pending')
+           const doneImageIds = doneImages.map((i: any) => i.id)
            
-           // Fetch annotations for done images
-           const { data: annotations } = await supabase.from('annotations').select('id, status, image_id')
+           if (doneImageIds.length > 0) {
+              setLoadingStep('Fetching annotations in batches...')
+              // Chunk the IDs into batches of 150 to prevent URL length limits in Supabase GET requests
+              const chunkSize = 150
+              for (let i = 0; i < doneImageIds.length; i += chunkSize) {
+                 const chunk = doneImageIds.slice(i, i + chunkSize)
+                 const { data } = await supabase.from('annotations').select('id, status, image_id').in('image_id', chunk);
+                 if (data) anns.push(...data)
+              }
+           }
            
            let approved = 0
            let flagged = 0
            let donePending = 0 // done annotating, pending review
            
-           annotations?.forEach(a => {
-              if (doneImages.find(i => i.id === a.image_id)) {
+           if (anns.length > 0) {
+              anns.forEach(a => {
                  if (a.status === 'approved') approved++
                  else if (a.status === 'flagged') flagged++
                  else donePending++
-              }
-           })
+              })
+           } else {
+              donePending = doneImages.length
+           }
 
            setStats({
              total: images.length,
@@ -76,122 +104,100 @@ export default function ProjectDashboardPage() {
       } catch(err) {
         console.error(err)
       } finally {
-        setLoading(false)
+        setLoadingStep('') // empty means done
       }
     }
     loadDashboard()
-  }, [id, supabase])
+  }, [id])
 
-  if (loading) return <div className="p-8 text-white">Loading dashboard...</div>
-  if (!project) return <div className="p-8 text-white">Project not found</div>
+  if (loadingStep !== '') return <div className="p-8 text-text-primary">Loading dashboard: {loadingStep}</div>
+  if (!project) return (
+    <div className="p-8 text-text-primary">
+      <h1 className="text-xl font-bold text-accent-red mb-4">Project Not Found!</h1>
+      <p>ID: {id}</p>
+      <p>This means the Supabase query returned null for this project. Check your Row Level Security (RLS) policies or ensure the project ID is correct.</p>
+    </div>
+  )
 
   const progress = stats.total > 0 ? ((stats.done + stats.approved + stats.flagged) / stats.total) * 100 : 0
 
-  const handleExport = async (format: string) => {
-    try {
-      alert(`Starting export to ${format.toUpperCase()}...`)
-      const res = await fetch('/api/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_id: id, format })
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      
-      if (data.files && data.files.length > 0) {
-         // Create zip
-         const zip = new JSZip()
-         data.files.forEach((file: any) => {
-            zip.file(file.name, file.content)
-         })
-         
-         const blob = await zip.generateAsync({ type: 'blob' })
-         const url = URL.createObjectURL(blob)
-         const a = document.createElement('a')
-         a.href = url
-         a.download = data.zipFilename
-         document.body.appendChild(a)
-         a.click()
-         a.remove()
-         URL.revokeObjectURL(url)
-         
-         alert(`Success! Exported ${data.files.length} files as ${data.zipFilename}.`)
-      } else {
-         alert("No annotations found to export.")
-      }
-    } catch(err: any) {
-      alert("Export failed: " + err.message)
-    }
-  }
 
   return (
-    <div className="min-h-screen bg-black/50 text-white p-8 relative">
-      <div className="max-w-5xl mx-auto space-y-8 relative z-10">
-        <div className="mb-4">
-           <Link href="/projects" className="text-muted hover:text-white text-sm font-semibold transition-colors flex items-center gap-2 w-fit">
-              <span className="text-xl">←</span> All Projects
+    <div className="min-h-screen bg-bg text-text-primary p-8 relative font-body">
+      <div className="max-w-[1280px] mx-auto space-y-8 relative z-10">
+        
+        <div className="flex items-center justify-between mb-4">
+           <Link href="/projects" className="text-text-secondary hover:text-text-primary text-sm font-display font-medium transition-all duration-150 ease-out flex items-center gap-2 w-fit">
+              <ArrowLeft size={18} strokeWidth={1.5} /> Back to Projects
            </Link>
+           <ThemeToggle />
         </div>
-        <div className="flex items-center justify-between glass px-8 py-6 rounded-3xl">
+
+        <div className="flex items-center justify-between bg-surface border border-border px-8 py-6 rounded-lg">
           <div>
-            <h1 className="text-4xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-accent to-purple-400 mb-2">{project.name}</h1>
-            <p className="text-sm text-muted">Project Dashboard overview</p>
+            <h1 className="text-2xl font-display font-semibold text-text-primary mb-1">{project.name}</h1>
+            <p className="text-sm text-text-secondary">Project Dashboard overview</p>
           </div>
           <div className="flex gap-4">
-            <Link href={`/projects/${id}`} className="px-6 py-3 btn-premium text-white font-bold rounded-xl shadow-lg">
+            <Link href={`/projects/${id}`} className="px-6 py-2.5 bg-accent-cyan hover:bg-accent-cyan-hover text-bg font-display font-medium rounded-md flex items-center justify-center transition-all duration-150 ease-out">
               Enter Workspace
             </Link>
-            <Link href={`/projects/${id}/review`} className="px-6 py-3 glass glass-interactive text-white font-bold rounded-xl">
+            <Link href={`/projects/${id}/review`} className="px-6 py-2.5 bg-transparent border border-border hover:bg-surface-hover hover:border-accent-cyan text-text-primary font-display font-medium rounded-md transition-all duration-150 ease-out">
               Review Queue
+            </Link>
+            <Link href={`/projects/${id}/taxonomy`} className="px-6 py-2.5 bg-transparent border border-border hover:bg-surface-hover hover:border-accent-cyan text-text-primary font-display font-medium rounded-md transition-all duration-150 ease-out">
+              FCOT Taxonomy
+            </Link>
+            <Link href={`/projects/${id}/scene-fields`} className="px-6 py-2.5 bg-transparent border border-border hover:bg-surface-hover hover:border-accent-cyan text-text-primary font-display font-medium rounded-md transition-all duration-150 ease-out">
+              Scene Fields
+            </Link>
+            <Link href={`/projects/${id}/history`} className="px-6 py-2.5 bg-transparent border border-border hover:bg-surface-hover hover:border-accent-cyan text-text-primary font-display font-medium rounded-md flex items-center gap-2 transition-all duration-150 ease-out">
+              <Clock size={16} className="text-accent-cyan" strokeWidth={1.5} /> Provenance
+            </Link>
+            <Link href={`/projects/${id}/settings`} className="px-6 py-2.5 bg-transparent border border-border hover:bg-surface-hover hover:border-accent-cyan text-text-primary font-display font-medium rounded-md transition-all duration-150 ease-out">
+              Settings
             </Link>
           </div>
         </div>
 
         <div className="grid grid-cols-4 gap-6">
-           <div className="glass glass-interactive p-6 rounded-2xl flex flex-col justify-between">
-             <div className="text-muted text-xs font-bold uppercase tracking-wider mb-2">Total Images</div>
-             <div className="text-5xl font-extrabold text-white">{stats.total}</div>
+           <div className="bg-surface border border-border p-6 rounded-lg flex flex-col justify-between">
+             <div className="text-text-secondary text-[11px] font-display uppercase tracking-[0.03em] mb-2">Total Images</div>
+             <div className="text-[34px] font-data font-medium text-text-primary">{stats.total}</div>
            </div>
-           <div className="glass glass-interactive p-6 rounded-2xl flex flex-col justify-between border-t-2 border-t-accent/50">
-             <div className="text-accent text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-accent animate-pulse"></span> Pending</div>
-             <div className="text-5xl font-extrabold text-white">{stats.pending}</div>
+           <div className="bg-surface border-t-2 border-t-accent-amber border-r border-b border-l border-border p-6 rounded-lg flex flex-col justify-between">
+             <div className="text-accent-amber text-[11px] font-display uppercase tracking-[0.03em] mb-2 flex items-center gap-2">Pending</div>
+             <div className="text-[34px] font-data font-medium text-text-primary">{stats.pending}</div>
            </div>
-           <div className="glass glass-interactive p-6 rounded-2xl flex flex-col justify-between border-t-2 border-t-green-500/50">
-             <div className="text-green-500 text-xs font-bold uppercase tracking-wider mb-2">Approved</div>
-             <div className="text-5xl font-extrabold text-white">{stats.approved}</div>
+           <div className="bg-surface border-t-2 border-t-accent-green border-r border-b border-l border-border p-6 rounded-lg flex flex-col justify-between">
+             <div className="text-accent-green text-[11px] font-display uppercase tracking-[0.03em] mb-2">Approved</div>
+             <div className="text-[34px] font-data font-medium text-text-primary">{stats.approved}</div>
            </div>
-           <div className="glass glass-interactive p-6 rounded-2xl flex flex-col justify-between border-t-2 border-t-warn/50">
-             <div className="text-warn text-xs font-bold uppercase tracking-wider mb-2">Flagged</div>
-             <div className="text-5xl font-extrabold text-white">{stats.flagged}</div>
+           <div className="bg-surface border-t-2 border-t-accent-magenta border-r border-b border-l border-border p-6 rounded-lg flex flex-col justify-between">
+             <div className="text-accent-magenta text-[11px] font-display uppercase tracking-[0.03em] mb-2">Flagged</div>
+             <div className="text-[34px] font-data font-medium text-text-primary">{stats.flagged}</div>
            </div>
         </div>
 
-        <div className="glass p-8 rounded-3xl relative overflow-hidden">
-           <div className="absolute inset-0 bg-gradient-to-br from-accent/5 to-purple-500/5 pointer-events-none"></div>
-           <div className="text-white text-sm font-bold uppercase tracking-widest mb-6 flex justify-between">
+        <div className="bg-surface border border-border p-8 rounded-lg relative overflow-hidden">
+           <div className="text-text-primary text-[11px] font-display font-medium uppercase tracking-[0.03em] mb-4 flex justify-between">
               <span>Annotation Progress</span>
-              <span className="text-accent">{progress.toFixed(1)}% Complete</span>
+              <span className="text-accent-cyan font-data">{progress.toFixed(1)}% Complete</span>
            </div>
-           <div className="w-full h-3 bg-black/50 rounded-full overflow-hidden border border-white/5 shadow-inner">
-             <div className="h-full bg-gradient-to-r from-accent via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(56,189,248,0.8)] transition-all duration-1000 ease-out" style={{ width: `${progress}%` }}></div>
+           <div className="w-full h-[6px] bg-surface-2 rounded-full overflow-hidden">
+             <div className="h-full bg-accent-cyan transition-all duration-1000 ease-out" style={{ width: `${progress}%` }}></div>
            </div>
         </div>
 
-        <div className="glass p-8 rounded-3xl flex items-center justify-between">
+        <div className="bg-surface border border-border p-8 rounded-lg flex items-center justify-between">
            <div>
-             <div className="text-lg font-bold text-white mb-2">Export Dataset</div>
-             <div className="text-sm text-muted max-w-md leading-relaxed">Download your completed annotations directly as a Zip archive containing individual files for each image.</div>
+             <div className="text-lg font-display font-medium text-text-primary mb-2">Export Dataset</div>
+             <div className="text-sm text-text-secondary max-w-md leading-relaxed">View your image sources and download completed annotations independently by folder.</div>
            </div>
            <div className="flex gap-4">
-             <button onClick={() => handleExport('coco')} className="px-5 py-2.5 glass glass-interactive text-white text-sm font-bold rounded-xl">
-               COCO
-             </button>
-             <button onClick={() => handleExport('yolo')} className="px-5 py-2.5 glass glass-interactive text-white text-sm font-bold rounded-xl">
-               YOLO
-             </button>
-             <button onClick={() => handleExport('anytate')} className="px-5 py-2.5 btn-premium text-white text-sm font-bold rounded-xl">
-               Anytate JSON
-             </button>
+             <Link href={`/projects/${id}/export`} className="px-6 py-2.5 bg-accent-cyan hover:bg-accent-cyan-hover text-bg text-sm font-display font-medium rounded-md transition-all duration-150 ease-out flex items-center gap-2">
+               Go to Export Page <ArrowLeft className="rotate-180" size={16} strokeWidth={1.5} />
+             </Link>
            </div>
         </div>
       </div>

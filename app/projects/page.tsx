@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import ThemeToggle from '@/components/ThemeToggle'
+import { Plus } from 'lucide-react'
 
 export default async function ProjectsPage() {
   const supabase = await createClient()
@@ -28,23 +31,32 @@ export default async function ProjectsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black/50 p-8 text-white relative">
-      <div className="mx-auto max-w-5xl relative z-10">
-        <header className="mb-8 flex items-center justify-between glass px-8 py-4 rounded-2xl">
+    <div className="min-h-screen bg-bg p-8 text-text-primary font-body">
+      <div className="mx-auto max-w-[1280px]">
+        <header className="mb-8 flex items-center justify-between bg-surface border border-border px-8 py-4 rounded-lg">
           <div>
-            <h1 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-accent to-purple-400">Projects</h1>
-            <p className="mt-1 text-sm text-muted">
-              Logged in as <span className="text-white/80 font-medium">{user.email}</span>
+            <h1 className="text-2xl font-display font-semibold text-text-primary">Projects</h1>
+            <p className="mt-1 text-sm text-text-secondary">
+              Logged in as <span className="text-text-primary font-medium">{user.email}</span>
             </p>
           </div>
-          <form action="/auth/signout" method="post">
-            <button
-              className="rounded-lg border border-white/10 px-5 py-2 text-sm font-semibold transition-all hover:bg-white/10 hover:border-white/20 hover:text-white"
-              type="submit"
+          <div className="flex items-center gap-4">
+            <Link 
+              href="/projects/new" 
+              className="flex items-center gap-2 rounded-md bg-accent-cyan px-5 py-2 text-sm font-display font-medium text-bg transition-colors hover:bg-accent-cyan-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring"
             >
-              Sign out
-            </button>
-          </form>
+              <Plus size={16} strokeWidth={2} /> Create Project
+            </Link>
+            <ThemeToggle />
+            <form action="/auth/signout" method="post">
+              <button
+                className="rounded-md border border-border px-5 py-2 text-sm font-display font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:border-accent-cyan hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring"
+                type="submit"
+              >
+                Sign out
+              </button>
+            </form>
+          </div>
         </header>
 
         <main>
@@ -56,22 +68,22 @@ export default async function ProjectsPage() {
                    <a 
                      key={p.id} 
                      href={`/projects/${p.id}/dashboard`}
-                     className="block rounded-2xl glass glass-interactive p-6"
+                     className="block rounded-lg bg-surface border border-border hover:border-accent-cyan hover:bg-surface-hover p-6 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring"
                    >
-                     <h2 className="text-xl font-bold mb-2">{p.name}</h2>
-                     <p className="text-sm text-muted mb-6 line-clamp-2">{p.description || 'No description provided.'}</p>
+                     <h2 className="text-xl font-display font-medium mb-2 text-text-primary">{p.name}</h2>
+                     <p className="text-sm text-text-secondary mb-6 line-clamp-2">{p.description || 'No description provided.'}</p>
                      
                      <div className="mb-6">
-                       <div className="text-xs text-muted font-mono mb-2 flex justify-between">
+                       <div className="text-[11px] text-text-secondary uppercase font-display font-medium tracking-[0.03em] mb-2 flex justify-between">
                          <span>Progress</span>
-                         <span className="text-white">{stats.done} / {stats.total}</span>
+                         <span className="text-text-primary font-data">{stats.done} / {stats.total}</span>
                        </div>
-                       <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/5">
-                         <div className="h-full bg-gradient-to-r from-accent to-purple-500 shadow-[0_0_10px_rgba(56,189,248,0.8)]" style={{ width: `${stats.total > 0 ? (stats.done / stats.total) * 100 : 0}%` }}></div>
+                       <div className="w-full h-1.5 bg-surface-2 rounded-full overflow-hidden border border-border">
+                         <div className="h-full bg-accent-cyan transition-all duration-1000 ease-out" style={{ width: `${stats.total > 0 ? (stats.done / stats.total) * 100 : 0}%` }}></div>
                        </div>
                      </div>
 
-                     <div className="text-accent text-sm font-bold flex items-center gap-1 group">
+                     <div className="text-accent-cyan text-sm font-display font-medium flex items-center gap-1 group">
                        Open Dashboard 
                        <span className="transition-transform group-hover:translate-x-1">→</span>
                      </div>
@@ -80,12 +92,12 @@ export default async function ProjectsPage() {
               })}
             </div>
           ) : (
-            <div className="rounded-2xl glass p-12 text-center flex flex-col items-center justify-center min-h-[300px]">
-              <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
+            <div className="rounded-lg bg-surface border border-border p-12 text-center flex flex-col items-center justify-center min-h-[300px]">
+              <div className="w-16 h-16 rounded-full bg-surface-2 border border-border flex items-center justify-center mb-4">
                  <span className="text-2xl opacity-50">📁</span>
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">No projects found</h2>
-              <p className="text-sm text-muted max-w-md">
+              <h2 className="text-xl font-display font-medium text-text-primary mb-2">No projects found</h2>
+              <p className="text-sm text-text-secondary max-w-md mx-auto">
                 You do not have access to any projects yet. When you are added to a project, it will appear here.
               </p>
             </div>

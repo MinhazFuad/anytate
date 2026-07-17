@@ -47,8 +47,12 @@ export const annotationSaveSchema = z.object({
     xmin: z.number().min(0).max(1000),
     ymax: z.number().min(0).max(1000),
     xmax: z.number().min(0).max(1000),
+    fcot: fcotSchema
   })).refine(boxes => {
     // Valid coordinates checking (min < max)
     return boxes.every(b => b.ymin < b.ymax && b.xmin < b.xmax)
-  }, { message: "Invalid box coordinates: min must be less than max" })
+  }, { message: "Invalid box coordinates: min must be less than max" }),
+  scene_context: z.record(z.string(), z.any()).optional(),
+  taxonomy_version_id: z.string().uuid().optional(),
+  scene_metadata_field_set_id: z.string().uuid().optional()
 })
