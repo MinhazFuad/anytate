@@ -343,14 +343,17 @@ export default function AnnotationCanvas({
 
   // Autosave Drafts (Milestone 6)
   const lastSavedStateRef = useRef<string>('')
+  const boxesRef = useRef(boxes)
+  useEffect(() => { boxesRef.current = boxes }, [boxes])
   
   useEffect(() => {
     if (!imageId) return
     const interval = setInterval(async () => {
+      const currentBoxes = boxesRef.current
       // Don't save if it hasn't changed or if empty initially
-      if (boxes.length === 0 && !lastSavedStateRef.current) return
+      if (currentBoxes.length === 0 && !lastSavedStateRef.current) return
       
-      const currentState = JSON.stringify(boxes.map(b => ({
+      const currentState = JSON.stringify(currentBoxes.map(b => ({
         class_key: b.class_key,
         ymin: b.bbox[0],
         xmin: b.bbox[1],
@@ -378,7 +381,7 @@ export default function AnnotationCanvas({
     }, 3000)
     
     return () => clearInterval(interval)
-  }, [boxes, imageId])
+  }, [imageId]) // stable — only restarts when the image changes, not on every box draw
 
   const handleServerUndo = async () => {
     if (!imageId) return

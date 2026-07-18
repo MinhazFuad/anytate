@@ -1,0 +1,173 @@
+{
+  "image_id": "p_img_100.jpg",
+  "image_resolution": {
+    "width": 4000,
+    "height": 3000
+  },
+  "coord_format": "ymin_xmin_ymax_xmax_0to1000",
+  "global_scene_context": {
+    "lighting_condition": "Golden Hour",
+    "water_body_type": "Stagnant Pond",
+    "water_color": "#b7a155",
+    "surface_coverage": "0-25%",
+    "turbidity_score": 8,
+    "annotator_notes": ""
+  },
+  "grounded_instances": [
+    {
+      "instance_id": 1,
+      "object_name": "water_hyacinth",
+      "bbox_2d": [
+        257,
+        202,
+        331,
+        308
+      ],
+      "fcot": {
+        "Primary Cue": "Rounded glossy green leaves arranged in floating rosettes above the water on bulbous inflated stems.",
+        "Observation": "Floating aquatic plant with bulbous leaf bases and clustered leaf rosettes. Healthy leaves are glossy green; older plants show yellow edges. Often forms dense mats.",
+        "Contrastive Rules": [
+          "Unlike algal_bloom, water_hyacinth has individual leaves and plant structures visible.",
+          "Unlike organic_waste, water_hyacinth is living and structurally intact.",
+          "Unlike shoreline vegetation, water_hyacinth floats freely with no rooted stem."
+        ],
+        "Static-Frame Disambiguation": "Real water_hyacinth has volumetric depth with a cast shadow; a reflection of shoreline vegetation is inverted and flat.",
+        "Decision Rule": "Assign water_hyacinth when intact rounded glossy leaves or inflated bulbous stems are visible.",
+        "Fallback Rule": "If partially occluded, commit on intact rounded glossy leaves or inflated stem shapes.",
+        "Failure Mode": "Most often confused with organic_waste when damaged — tiebreaker is any intact rosette structure.",
+        "Instance Note": "",
+        "Conclusion": "Class: water_hyacinth. Invasive floating aquatic vegetation."
+      }
+    },
+    {
+      "instance_id": 2,
+      "object_name": "solid_waste",
+      "bbox_2d": [
+        460,
+        390,
+        484,
+        410
+      ],
+      "fcot": {
+        "Primary Cue": "Cluster of two or more man-made items visibly grouped together on the water surface or at the water edge.",
+        "Observation": "Mixed accumulation of identifiable consumer items — wrappers, packaging, cans, broken bricks, ceramic fragments, or food containers.",
+        "Contrastive Rules": [
+          "Unlike single-item classes, solid_waste contains multiple different debris items grouped together.",
+          "Unlike organic_waste, solid_waste contains visible man-made items.",
+          "Unlike industrial_waste, solid_waste is composed of solid discrete objects not liquid discharge."
+        ],
+        "Static-Frame Disambiguation": "Discrete man-made item outlines remain visible with hard geometric edges; reflections of objects are inverted and lack solid outlines.",
+        "Decision Rule": "Assign solid_waste when two or more visually distinct man-made items are clustered within one object-width of each other.",
+        "Fallback Rule": "If only partial items visible, commit when at least two visually distinct man-made forms can be identified.",
+        "Failure Mode": "Most often confused with organic_waste when synthetics are mixed into decaying matter — tiebreaker is any clearly man-made item.",
+        "Instance Note": "",
+        "Conclusion": "Class: solid_waste. Mixed consumer or construction debris cluster."
+      }
+    },
+    {
+      "instance_id": 3,
+      "object_name": "solid_waste",
+      "bbox_2d": [
+        589,
+        746,
+        616,
+        770
+      ],
+      "fcot": {
+        "Primary Cue": "Cluster of two or more man-made items visibly grouped together on the water surface or at the water edge.",
+        "Observation": "Mixed accumulation of identifiable consumer items — wrappers, packaging, cans, broken bricks, ceramic fragments, or food containers.",
+        "Contrastive Rules": [
+          "Unlike single-item classes, solid_waste contains multiple different debris items grouped together.",
+          "Unlike organic_waste, solid_waste contains visible man-made items.",
+          "Unlike industrial_waste, solid_waste is composed of solid discrete objects not liquid discharge."
+        ],
+        "Static-Frame Disambiguation": "Discrete man-made item outlines remain visible with hard geometric edges; reflections of objects are inverted and lack solid outlines.",
+        "Decision Rule": "Assign solid_waste when two or more visually distinct man-made items are clustered within one object-width of each other.",
+        "Fallback Rule": "If only partial items visible, commit when at least two visually distinct man-made forms can be identified.",
+        "Failure Mode": "Most often confused with organic_waste when synthetics are mixed into decaying matter — tiebreaker is any clearly man-made item.",
+        "Instance Note": "",
+        "Conclusion": "Class: solid_waste. Mixed consumer or construction debris cluster."
+      }
+    },
+    {
+      "instance_id": 4,
+      "object_name": "solid_waste",
+      "bbox_2d": [
+        349,
+        699,
+        373,
+        719
+      ],
+      "fcot": {
+        "Primary Cue": "Cluster of two or more man-made items visibly grouped together on the water surface or at the water edge.",
+        "Observation": "Mixed accumulation of identifiable consumer items — wrappers, packaging, cans, broken bricks, ceramic fragments, or food containers.",
+        "Contrastive Rules": [
+          "Unlike single-item classes, solid_waste contains multiple different debris items grouped together.",
+          "Unlike organic_waste, solid_waste contains visible man-made items.",
+          "Unlike industrial_waste, solid_waste is composed of solid discrete objects not liquid discharge."
+        ],
+        "Static-Frame Disambiguation": "Discrete man-made item outlines remain visible with hard geometric edges; reflections of objects are inverted and lack solid outlines.",
+        "Decision Rule": "Assign solid_waste when two or more visually distinct man-made items are clustered within one object-width of each other.",
+        "Fallback Rule": "If only partial items visible, commit when at least two visually distinct man-made forms can be identified.",
+        "Failure Mode": "Most often confused with organic_waste when synthetics are mixed into decaying matter — tiebreaker is any clearly man-made item.",
+        "Instance Note": "",
+        "Conclusion": "Class: solid_waste. Mixed consumer or construction debris cluster."
+      }
+    },
+    {
+      "instance_id": 5,
+      "object_name": "solid_waste",
+      "bbox_2d": [
+        366,
+        633,
+        392,
+        651
+      ],
+      "fcot": {
+        "Primary Cue": "Cluster of two or more man-made items visibly grouped together on the water surface or at the water edge.",
+        "Observation": "Mixed accumulation of identifiable consumer items — wrappers, packaging, cans, broken bricks, ceramic fragments, or food containers.",
+        "Contrastive Rules": [
+          "Unlike single-item classes, solid_waste contains multiple different debris items grouped together.",
+          "Unlike organic_waste, solid_waste contains visible man-made items.",
+          "Unlike industrial_waste, solid_waste is composed of solid discrete objects not liquid discharge."
+        ],
+        "Static-Frame Disambiguation": "Discrete man-made item outlines remain visible with hard geometric edges; reflections of objects are inverted and lack solid outlines.",
+        "Decision Rule": "Assign solid_waste when two or more visually distinct man-made items are clustered within one object-width of each other.",
+        "Fallback Rule": "If only partial items visible, commit when at least two visually distinct man-made forms can be identified.",
+        "Failure Mode": "Most often confused with organic_waste when synthetics are mixed into decaying matter — tiebreaker is any clearly man-made item.",
+        "Instance Note": "",
+        "Conclusion": "Class: solid_waste. Mixed consumer or construction debris cluster."
+      }
+    },
+    {
+      "instance_id": 6,
+      "object_name": "solid_waste",
+      "bbox_2d": [
+        678,
+        362,
+        712,
+        389
+      ],
+      "fcot": {
+        "Primary Cue": "Cluster of two or more man-made items visibly grouped together on the water surface or at the water edge.",
+        "Observation": "Mixed accumulation of identifiable consumer items — wrappers, packaging, cans, broken bricks, ceramic fragments, or food containers.",
+        "Contrastive Rules": [
+          "Unlike single-item classes, solid_waste contains multiple different debris items grouped together.",
+          "Unlike organic_waste, solid_waste contains visible man-made items.",
+          "Unlike industrial_waste, solid_waste is composed of solid discrete objects not liquid discharge."
+        ],
+        "Static-Frame Disambiguation": "Discrete man-made item outlines remain visible with hard geometric edges; reflections of objects are inverted and lack solid outlines.",
+        "Decision Rule": "Assign solid_waste when two or more visually distinct man-made items are clustered within one object-width of each other.",
+        "Fallback Rule": "If only partial items visible, commit when at least two visually distinct man-made forms can be identified.",
+        "Failure Mode": "Most often confused with organic_waste when synthetics are mixed into decaying matter — tiebreaker is any clearly man-made item.",
+        "Instance Note": "",
+        "Conclusion": "Class: solid_waste. Mixed consumer or construction debris cluster."
+      }
+    }
+  ],
+  "total_objects": 6,
+  "environmental_diagnostics": {
+    "primary_pollutant": "solid_waste",
+    "remediation_priority": "High"
+  }
+}

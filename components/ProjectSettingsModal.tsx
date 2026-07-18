@@ -1,18 +1,35 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import Link from 'next/link'
-import ThemeToggle from '@/components/ThemeToggle'
-import { toast } from 'sonner'
-import { ArrowLeft, Trash2, Save, AlertTriangle, Folder, ChevronRight } from 'lucide-react'
 
-export default function ProjectSettingsPage() {
-  const { id } = useParams()
-  const router = useRouter()
-  const supabase = createClient()
+import { createClient } from '@/lib/supabase/client'
+
+
+import { toast } from 'sonner'
+import { X, Trash2, Save, AlertTriangle, Folder, ChevronRight } from 'lucide-react'
+
+export default function ProjectSettingsModal({ 
+  projectId: id, 
+  onClose, 
+  onSaved 
+}: { 
+  projectId: string, 
+  onClose: () => void,
+  onSaved: () => void 
+}) {
+      const supabase = createClient()
   
+  const [isOpen, setIsOpen] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setIsOpen(true), 10);
+    return () => clearTimeout(t);
+  }, []);
+
+  const handleClose = () => {
+    setIsOpen(false);
+    setTimeout(onClose, 300);
+  };
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -131,10 +148,8 @@ export default function ProjectSettingsPage() {
 
       if (error) throw error
       toast.success("Project settings updated successfully")
-      router.refresh()
-      setTimeout(() => {
-         router.push(`/projects/${id}/dashboard`)
-      }, 100)
+      onSaved();
+      onClose();
     } catch (err: any) {
       toast.error(err.message)
     } finally {
@@ -218,30 +233,41 @@ export default function ProjectSettingsPage() {
       }
       
       toast.success("Project deleted successfully")
-      router.push('/projects')
+      window.location.href = '/projects'
     } catch (err: any) {
       toast.error(err.message)
       setDeleting(false)
     }
   }
 
-  if (loading) return <div className="min-h-screen bg-bg flex items-center justify-center text-text-primary">Loading settings...</div>
+  if (loading) {
+    return (
+      <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8 font-body transition-all duration-300 ${isOpen ? 'bg-bg/80 backdrop-blur-sm' : 'bg-transparent backdrop-blur-none pointer-events-none'}`}>
+        <div className={`bg-bg border border-border p-8 rounded-xl shadow-2xl transition-all duration-300 ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4'}`}>
+          <div className="text-text-primary font-display font-medium">Loading settings...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-bg text-text-primary p-8 font-body">
-      <div className="max-w-[800px] mx-auto space-y-8">
-        
+    <div 
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8 font-body transition-all duration-300 ${isOpen ? 'bg-bg/80 backdrop-blur-sm' : 'bg-transparent backdrop-blur-none pointer-events-none'}`}
+      onClick={handleClose}
+    >
+      <div 
+        className={`bg-bg border border-border w-full max-w-[800px] max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl space-y-8 p-8 transition-all duration-300 ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4'}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-           <Link href={`/projects/${id}/dashboard`} className="text-text-secondary hover:text-text-primary text-sm font-display font-medium transition-all duration-150 ease-out flex items-center gap-2 w-fit">
-              <ArrowLeft size={18} strokeWidth={1.5} /> Back to Dashboard
-           </Link>
-           <ThemeToggle />
-        </div>
-
-        <div>
-          <h1 className="text-2xl font-display font-semibold text-text-primary">Project Settings</h1>
-          <p className="text-sm text-text-secondary mt-1">Manage project lifecycle and image preprocessing variables.</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-display font-semibold text-text-primary">Project Settings</h1>
+            <p className="text-sm text-text-secondary mt-1">Manage project lifecycle and image preprocessing variables.</p>
+          </div>
+          <button onClick={handleClose} className="text-text-secondary hover:text-text-primary transition-colors p-2 bg-surface hover:bg-surface-hover rounded-full">
+             <X size={20} />
+          </button>
         </div>
 
         <div className="space-y-6">

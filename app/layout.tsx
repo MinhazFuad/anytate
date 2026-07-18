@@ -3,6 +3,7 @@ import { JetBrains_Mono, Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from 'sonner';
+import GlobalNavbar from '@/components/GlobalNavbar';
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-display",
@@ -43,6 +44,7 @@ export default function RootLayout({
           enableSystem={true}
           disableTransitionOnChange
         >
+          <GlobalNavbar />
           {children}
           <Toaster 
             position="bottom-right"

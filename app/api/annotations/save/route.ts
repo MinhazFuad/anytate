@@ -43,6 +43,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing taxonomy version' }, { status: 400 })
     }
 
+    // 2.2 Check if project has Solo Mode enabled
+    const { data: projectData } = await supabase
+      .from('projects')
+      .select('solo_mode')
+      .eq('id', validatedData.project_id)
+      .single()
+      
+    const finalStatus = projectData?.solo_mode ? 'approved' : 'pending'
+
     // 2.5 Calculate derived diagnostics
     let primary_pollutant = "None"
     if (validatedData.boxes.length > 0) {
@@ -78,6 +87,7 @@ export async function POST(request: Request) {
         scene_context: validatedData.scene_context || {},
         derived_diagnostics: derived_diagnostics,
         annotator_id: user.id,
+        status: finalStatus,
         updated_at: new Date().toISOString()
       }).eq('id', annotationId)
       
@@ -103,7 +113,7 @@ export async function POST(request: Request) {
         scene_context: validatedData.scene_context || {},
         derived_diagnostics: derived_diagnostics,
         annotator_id: user.id,
-        status: 'pending'
+        status: finalStatus
       }).select().single()
 
       if (insertErr) throw insertErr
@@ -122,6 +132,31 @@ export async function POST(request: Request) {
       // Update the Image status to 'done' only on initial save
       const { error: imageErr } = await supabase.from('images').update({ status: 'done' }).eq('id', validatedData.image_id)
       if (imageErr) throw imageErr
+
+      // Notify reviewers and owners
+      const { data: reviewers } = await supabase.from('project_members')
+        .select('user_id')
+        .eq('project_id', validatedData.project_id)
+        .in('role', ['reviewer', 'owner'])
+      
+      if (reviewers && reviewers.length > 0) {
+        // fetch image filename for a nice message
+        const { data: imgData } = await supabase.from('images').select('file_name').eq('id', validatedData.image_id).single()
+        
+        const notifications = reviewers
+           .filter((r: any) => r.user_id !== user.id) // don't notify oneself
+           .map((r: any) => ({
+              user_id: r.user_id,
+              project_id: validatedData.project_id,
+              type: 'review_ready',
+              message: `New image ready for review: ${imgData?.file_name || 'unknown'}`,
+              link: `/projects/${validatedData.project_id}/review`
+           }))
+        
+        if (notifications.length > 0) {
+           await supabase.from('notifications').insert(notifications)
+        }
+      }
     }
 
     // 4. Delete the user's draft if it exists

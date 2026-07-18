@@ -1,6 +1,21 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+function getScaledResolution(originalWidth: number, originalHeight: number, maxDim: number) {
+  let w = originalWidth
+  let h = originalHeight
+  if (w > maxDim || h > maxDim) {
+    if (w > h) {
+      h = Math.round((h * maxDim) / w)
+      w = maxDim
+    } else {
+      w = Math.round((w * maxDim) / h)
+      h = maxDim
+    }
+  }
+  return { width: w, height: h }
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
@@ -29,7 +44,7 @@ export async function POST(request: Request) {
     // 3. Fetch all annotations
     // We export any annotation that exists. Or maybe only 'approved'? Let's export all for now.
     let query = supabase.from('annotations')
-      .select('grounded_instances, scene_context, images!inner(file_name, width, height, drive_folder_id)')
+      .select('grounded_instances, scene_context, derived_diagnostics, images!inner(file_name, width, height, drive_folder_id)')
       .eq('images.project_id', project_id)
       
     if (folder_id) {
@@ -54,10 +69,29 @@ export async function POST(request: Request) {
        zipFilename = `${project.name.replace(/\s+/g, '_')}_anytate.zip`
        annotations.forEach((ann: any) => {
          const baseName = ann.images.file_name.substring(0, ann.images.file_name.lastIndexOf('.')) || ann.images.file_name
-         if (!ann.scene_context || Object.keys(ann.scene_context).length === 0) {
-            delete ann.scene_context
+         
+         const scaledRes = getScaledResolution(
+            ann.images.width || 1000, 
+            ann.images.height || 1000, 
+            project.preprocessing?.max_dim || 1024
+         )
+         
+         const formattedAnn = {
+           image_id: ann.images.file_name,
+           image_resolution: scaledRes,
+           coord_format: "ymin_xmin_ymax_xmax_0to1000",
+           global_scene_context: ann.scene_context || {},
+           grounded_instances: ann.grounded_instances.map((b: any, idx: number) => ({
+             instance_id: idx + 1,
+             object_name: b.class_key,
+             bbox_2d: [b.ymin, b.xmin, b.ymax, b.xmax],
+             fcot: b.fcot
+           })),
+           total_objects: ann.grounded_instances.length,
+           environmental_diagnostics: ann.derived_diagnostics || {}
          }
-         files.push({ name: `${baseName}.json`, content: JSON.stringify(ann, null, 2) })
+         
+         files.push({ name: `${baseName}.json`, content: JSON.stringify(formattedAnn, null, 2) })
        })
     } else if (format === 'yolo') {
        zipFilename = `${project.name.replace(/\s+/g, '_')}_yolo.zip`
@@ -93,13 +127,18 @@ export async function POST(request: Request) {
        let annId = 1
        annotations.forEach((ann: any, imgIdx) => {
          const img = ann.images
-         coco.images.push({ id: imgIdx, file_name: img.file_name, width: img.width || 1000, height: img.height || 1000 } as never)
+         const scaledRes = getScaledResolution(
+            img.width || 1000, 
+            img.height || 1000, 
+            project.preprocessing?.max_dim || 1024
+         )
+         coco.images.push({ id: imgIdx, file_name: img.file_name, width: scaledRes.width, height: scaledRes.height } as never)
          
          ann.grounded_instances.forEach((b: any) => {
-            const w = (b.xmax - b.xmin) / 1000 * (img.width || 1000)
-            const h = (b.ymax - b.ymin) / 1000 * (img.height || 1000)
-            const x = (b.xmin) / 1000 * (img.width || 1000)
-            const y = (b.ymin) / 1000 * (img.height || 1000)
+            const w = (b.xmax - b.xmin) / 1000 * scaledRes.width
+            const h = (b.ymax - b.ymin) / 1000 * scaledRes.height
+            const x = (b.xmin) / 1000 * scaledRes.width
+            const y = (b.ymin) / 1000 * scaledRes.height
             
             coco.annotations.push({
                id: annId++,

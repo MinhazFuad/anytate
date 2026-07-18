@@ -16,6 +16,7 @@ export default function NewProjectPage() {
   
   // Form State
   const [projectName, setProjectName] = useState('')
+  const [soloMode, setSoloMode] = useState(false)
   const [maxDim, setMaxDim] = useState(1024)
   const [jpegQuality, setJpegQuality] = useState(85)
   
@@ -70,6 +71,7 @@ export default function NewProjectPage() {
       const { data: project, error: pErr } = await supabase.from('projects').insert({
         name: projectName,
         owner_id: user.id,
+        solo_mode: soloMode,
         drive_image_folder_id: selectedFolderId,
         preprocessing: {
           max_dim: maxDim,
@@ -104,7 +106,6 @@ export default function NewProjectPage() {
            <Link href={`/projects`} className="text-text-secondary hover:text-text-primary text-sm font-display font-medium transition-all duration-150 ease-out flex items-center gap-2 w-fit">
               <ArrowLeft size={18} strokeWidth={1.5} /> Back to Projects
            </Link>
-           <ThemeToggle />
         </div>
 
         <div>
@@ -128,6 +129,23 @@ export default function NewProjectPage() {
                 className="w-full bg-surface-2 border border-border rounded-md px-4 py-2.5 text-sm font-body text-text-primary focus:border-accent-cyan outline-none transition-colors"
                 required
               />
+            </div>
+
+            <div className="pt-4 border-t border-border flex items-center justify-between">
+              <div>
+                <label className="text-sm font-display font-medium text-text-primary flex items-center gap-2">
+                  Solo Mode (Bypass Review Queue)
+                </label>
+                <p className="text-xs text-text-secondary mt-1 max-w-[400px]">When enabled, clicking &quot;Save&quot; on an image instantly marks it as <span className="font-data text-accent-green">approved</span> instead of pending review.</p>
+              </div>
+              
+              <button 
+                type="button"
+                onClick={() => setSoloMode(!soloMode)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${soloMode ? 'bg-accent-cyan' : 'bg-surface-2 border border-border'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-bg transition-transform ${soloMode ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
             </div>
           </div>
 
@@ -170,25 +188,31 @@ export default function NewProjectPage() {
                          className={`flex items-center gap-3 p-2 rounded-md cursor-pointer select-none transition-colors border ${selectedFolderId === folder.id ? 'bg-accent-cyan-muted border-accent-cyan text-accent-cyan' : 'border-transparent hover:bg-surface-hover text-text-primary'}`}
                        >
                          <Folder size={18} strokeWidth={1.5} className={selectedFolderId === folder.id ? 'text-accent-cyan' : 'text-text-secondary'} />
-                         <span className="text-sm font-body truncate flex-1">{folder.name}</span>
-                         <button 
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); navigateTo(folder.id, folder.name); }}
-                            className="p-1 hover:bg-surface rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                         >
-                            <ChevronRight size={16} className="text-text-tertiary" />
-                         </button>
+                         <span className={`text-sm font-body truncate flex-1 ${selectedFolderId === folder.id ? 'font-medium' : ''}`}>{folder.name}</span>
                        </div>
                      ))}
                    </div>
                  )}
                </div>
                {/* Selected Footer */}
-               <div className="p-3 border-t border-border bg-surface text-xs font-display flex items-center justify-between">
-                 <span className="text-text-secondary uppercase tracking-[0.03em] font-semibold">Selected Folder</span>
-                 <span className="font-data text-accent-cyan px-2 py-0.5 bg-accent-cyan-muted rounded-sm border border-accent-cyan/20 truncate max-w-[200px]" title={selectedFolderId}>
-                   {path.find(p => p.id === selectedFolderId)?.name || 'Selected from outside'}
-                 </span>
+               <div className="p-4 border-t border-border bg-surface flex items-center justify-between">
+                 <div className="flex flex-col">
+                   <span className="text-[11px] text-text-secondary font-display font-semibold uppercase tracking-[0.03em] mb-1">Target Folder</span>
+                   <span className="text-sm font-data text-text-primary font-medium flex items-center gap-2">
+                     <Folder size={14} className="text-accent-cyan" />
+                     {selectedFolderId === currentFolder.id 
+                       ? currentFolder.name 
+                       : (folders.find(f => f.id === selectedFolderId)?.name || path.find(p => p.id === selectedFolderId)?.name || 'Unknown')}
+                   </span>
+                 </div>
+                 <button 
+                   type="button"
+                   onClick={() => setSelectedFolderId(currentFolder.id)}
+                   disabled={selectedFolderId === currentFolder.id}
+                   className="px-4 py-2 bg-surface-2 border border-border rounded-md text-sm font-display font-medium text-text-primary hover:bg-surface-hover hover:border-text-tertiary disabled:opacity-50 transition-colors"
+                 >
+                   Select Current Folder
+                 </button>
                </div>
             </div>
           </div>
@@ -200,7 +224,7 @@ export default function NewProjectPage() {
             
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs uppercase font-display font-semibold tracking-[0.03em] text-text-secondary">Max Dimension (px)</label>
+                <label className="text-xs uppercase font-display font-semibold tracking-[0.03em] text-text-secondary">Preferred Annotation Resolution (Max px)</label>
                 <input 
                   type="number" 
                   value={maxDim}

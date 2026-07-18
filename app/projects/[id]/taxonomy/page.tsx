@@ -54,23 +54,36 @@ export default function TaxonomyBuilderPage() {
   const [version, setVersion] = useState<number | null>(null)
   const [versionName, setVersionName] = useState('')
   const [history, setHistory] = useState<any[]>([])
+  const [allVersions, setAllVersions] = useState<any[]>([])
+  const [role, setRole] = useState<string>('annotator')
 
   useEffect(() => {
     async function loadTaxonomy() {
-      // Get active taxonomy version for this project
-      const { data: vData } = await supabase
+      // Fetch role
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: member } = await supabase.from('project_members').select('role').eq('project_id', id).eq('user_id', user.id).single()
+        if (member) setRole(member.role)
+      }
+
+      // Fetch all versions
+      const { data: allV } = await supabase
         .from('taxonomy_versions')
-        .select('id, version_number')
+        .select('id, version_number, is_active')
         .eq('project_id', id)
-        .eq('is_active', true)
-        .single()
+        .order('version_number', { ascending: false })
+      
+      if (allV) setAllVersions(allV)
+
+      // Get active taxonomy version for this project
+      const activeV = allV?.find(v => v.is_active)
         
-      if (vData) {
-        setVersion(vData.version_number)
+      if (activeV) {
+        setVersion(activeV.version_number)
         const { data: cData } = await supabase
           .from('taxonomy_classes')
           .select('*')
-          .eq('taxonomy_version_id', vData.id)
+          .eq('taxonomy_version_id', activeV.id)
           .order('sort_order')
           
         if (cData) setClasses(cData as ClassData[])
@@ -81,6 +94,13 @@ export default function TaxonomyBuilderPage() {
     }
     loadTaxonomy()
   }, [id, supabase])
+
+  const setActiveVersion = async (versionId: string) => {
+    setLoading(true)
+    await supabase.from('taxonomy_versions').update({ is_active: false }).eq('project_id', id)
+    await supabase.from('taxonomy_versions').update({ is_active: true }).eq('id', versionId)
+    window.location.reload()
+  }
 
   const addClass = () => {
     setClasses([...classes, {
@@ -181,7 +201,7 @@ export default function TaxonomyBuilderPage() {
         .eq('project_id', id)
         .neq('id', newVersion.id)
         
-      toast.success(`Taxonomy version ${newVersionNum} saved successfully!`)
+      toast.success(`Classes & CoTs version ${newVersionNum} saved successfully!`)
       if (version === 0) {
         router.push(`/projects/${id}/dashboard`)
       } else {
@@ -193,7 +213,7 @@ export default function TaxonomyBuilderPage() {
     setSaving(false)
   }
 
-  if (loading) return <div className="p-8 text-white">Loading taxonomy...</div>
+  if (loading) return <div className="p-8 text-white">Loading Classes & CoTs...</div>
 
   return (
     <div className="min-h-screen bg-bg text-text-primary p-8 font-body">
@@ -202,7 +222,7 @@ export default function TaxonomyBuilderPage() {
         <div className="flex items-center justify-between mb-4">
            {version === 0 ? (
               <div className="text-text-secondary text-sm font-display font-medium">
-                 Please create your initial Taxonomy Schema.
+                 Please create your initial Classes & CoTs.
               </div>
            ) : (
               <Link href={`/projects/${id}/dashboard`} className="text-text-secondary hover:text-text-primary text-sm font-display font-medium transition-all duration-150 ease-out flex items-center gap-2 w-fit">
@@ -214,32 +234,46 @@ export default function TaxonomyBuilderPage() {
         
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-display font-semibold text-text-primary">Taxonomy Builder</h1>
-            <p className="text-sm text-text-secondary font-display">Current Version: {version ? `v${version}` : 'None'}</p>
+            <h1 className="text-2xl font-display font-semibold text-text-primary">Classes & CoTs Builder</h1>
+            <div className="flex items-center gap-2 mt-1">
+               <p className="text-sm text-text-secondary font-display">Active Version:</p>
+               <select 
+                 className="bg-surface border border-border rounded-md px-2 py-1 text-sm text-text-primary focus:border-accent-cyan outline-none"
+                 value={allVersions.find(v => v.is_active)?.id || ''}
+                 onChange={(e) => setActiveVersion(e.target.value)}
+               >
+                 <option value="" disabled>Select Version</option>
+                 {allVersions.map(v => (
+                   <option key={v.id} value={v.id}>v{v.version_number}</option>
+                 ))}
+               </select>
+            </div>
           </div>
           
-          <div className="flex items-center gap-4">
-            <button 
-               onClick={() => setMode(mode === 'form' ? 'json' : 'form')}
-               className="px-4 py-2 bg-transparent border border-border rounded-md text-text-primary text-sm font-display font-medium hover:bg-surface-hover hover:border-accent-cyan transition-all duration-150 ease-out"
-            >
-               {mode === 'form' ? 'Switch to JSON Import' : 'Switch to Form Builder'}
-            </button>
-            <input 
-              type="text"
-              value={versionName}
-              onChange={e => setVersionName(e.target.value)}
-              placeholder={`Version ${(version || 0) + 1} Name`}
-              className="bg-surface border border-border rounded-md px-4 py-2 text-sm font-body text-text-primary placeholder:text-text-tertiary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring"
-            />
-            <button 
-              onClick={mode === 'json' ? handleJsonImport : handleSave}
-              disabled={saving || (mode === 'form' && classes.length === 0)}
-              className="px-6 py-2 bg-accent-cyan text-bg font-display font-medium rounded-md hover:bg-accent-cyan-hover disabled:bg-surface-2 disabled:text-text-tertiary transition-all duration-150 ease-out"
-            >
-              {saving ? 'Saving...' : mode === 'json' ? 'Validate & Import JSON' : 'Publish New Version'}
-            </button>
-          </div>
+          {role === 'owner' && (
+            <div className="flex items-center gap-4">
+              <button 
+                 onClick={() => setMode(mode === 'form' ? 'json' : 'form')}
+                 className="px-4 py-2 bg-transparent border border-border rounded-md text-text-primary text-sm font-display font-medium hover:bg-surface-hover hover:border-accent-cyan transition-all duration-150 ease-out"
+              >
+                 {mode === 'form' ? 'Switch to JSON Import' : 'Switch to Form Builder'}
+              </button>
+              <input 
+                type="text"
+                value={versionName}
+                onChange={e => setVersionName(e.target.value)}
+                placeholder={`Version ${(version || 0) + 1} Name`}
+                className="bg-surface border border-border rounded-md px-4 py-2 text-sm font-body text-text-primary placeholder:text-text-tertiary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring"
+              />
+              <button 
+                onClick={mode === 'json' ? handleJsonImport : handleSave}
+                disabled={saving || (mode === 'form' && classes.length === 0)}
+                className="px-6 py-2 bg-accent-cyan text-bg font-display font-medium rounded-md hover:bg-accent-cyan-hover disabled:bg-surface-2 disabled:text-text-tertiary transition-all duration-150 ease-out"
+              >
+                {saving ? 'Saving...' : mode === 'json' ? 'Validate & Import JSON' : 'Publish New Version'}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="bg-surface border border-border rounded-lg p-6">
@@ -269,19 +303,23 @@ export default function TaxonomyBuilderPage() {
                          type="text" 
                          value={cls.display_name} 
                          onChange={e => updateClass(i, 'display_name', e.target.value)}
-                         className="bg-surface border border-border rounded-md p-2 font-display font-medium text-base text-text-primary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring flex-1"
+                         disabled={role !== 'owner'}
+                         className="bg-surface border border-border rounded-md p-2 font-display font-medium text-base text-text-primary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring flex-1 disabled:opacity-50"
                          placeholder="Display Name"
                        />
                        <input 
                          type="color" 
                          value={cls.color} 
                          onChange={e => updateClass(i, 'color', e.target.value)}
-                         className="w-8 h-8 rounded-sm cursor-pointer border-0 p-0"
+                         disabled={role !== 'owner'}
+                         className="w-8 h-8 rounded-sm cursor-pointer border-0 p-0 disabled:opacity-50"
                        />
                      </div>
-                     <button onClick={() => removeClass(i)} className="text-accent-red hover:bg-accent-red/10 px-3 py-1.5 rounded-md font-display font-medium text-sm transition-all duration-150 ease-out">
-                       Remove Class
-                     </button>
+                     {role === 'owner' && (
+                       <button onClick={() => removeClass(i)} className="text-accent-red hover:bg-accent-red/10 px-3 py-1.5 rounded-md font-display font-medium text-sm transition-all duration-150 ease-out">
+                         Remove Class
+                       </button>
+                     )}
                    </div>
                    
                    <div className="p-4 grid grid-cols-2 gap-4">
@@ -291,7 +329,8 @@ export default function TaxonomyBuilderPage() {
                          type="text" 
                          value={cls.class_key} 
                          onChange={e => updateClass(i, 'class_key', e.target.value)}
-                         className="w-full bg-surface-2 border border-border rounded-md p-2 text-sm font-data text-text-primary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring"
+                         disabled={role !== 'owner'}
+                         className="w-full bg-surface-2 border border-border rounded-md p-2 text-sm font-data text-text-primary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring disabled:opacity-50"
                        />
                      </div>
                      <div className="col-span-1 space-y-2">
@@ -300,7 +339,8 @@ export default function TaxonomyBuilderPage() {
                          type="text" 
                          value={cls.shortcut_key} 
                          onChange={e => updateClass(i, 'shortcut_key', e.target.value)}
-                         className="w-full bg-surface-2 border border-border rounded-md p-2 text-sm font-data text-text-primary uppercase focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring"
+                         disabled={role !== 'owner'}
+                         className="w-full bg-surface-2 border border-border rounded-md p-2 text-sm font-data text-text-primary uppercase focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring disabled:opacity-50"
                          maxLength={1}
                        />
                      </div>
@@ -315,14 +355,16 @@ export default function TaxonomyBuilderPage() {
                                <textarea 
                                  value={(cls.fcot[fcotField] || []).join('\n')} 
                                  onChange={e => updateFcot(i, fcotField, e.target.value.split('\n'))}
-                                 className="w-full h-24 bg-surface-2 border border-border rounded-md p-3 text-[14px] leading-[1.6] font-body text-text-primary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring"
+                                 disabled={role !== 'owner'}
+                                 className="w-full h-24 bg-surface-2 border border-border rounded-md p-3 text-[14px] leading-[1.6] font-body text-text-primary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring disabled:opacity-50"
                                  placeholder="One rule per line..."
                                />
                             ) : (
                                <textarea 
                                  value={cls.fcot[fcotField] as string} 
                                  onChange={e => updateFcot(i, fcotField, e.target.value)}
-                                 className="w-full h-16 bg-surface-2 border border-border rounded-md p-3 text-[14px] leading-[1.6] font-body text-text-primary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring"
+                                 disabled={role !== 'owner'}
+                                 className="w-full h-16 bg-surface-2 border border-border rounded-md p-3 text-[14px] leading-[1.6] font-body text-text-primary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring disabled:opacity-50"
                                />
                             )}
                           </div>
@@ -331,10 +373,11 @@ export default function TaxonomyBuilderPage() {
                    </div>
                  </div>
                ))}
-               
-               <button onClick={addClass} className="w-full py-4 border-2 border-dashed border-border rounded-lg text-text-secondary hover:text-text-primary hover:border-border-strong hover:bg-surface-hover font-display font-medium transition-all duration-150 ease-out flex items-center justify-center gap-2">
-                 <Plus size={18} strokeWidth={1.5} /> Add New Class
-               </button>
+                              {role === 'owner' && (
+                  <button onClick={addClass} className="w-full py-4 border-2 border-dashed border-border rounded-lg text-text-secondary hover:text-text-primary hover:border-border-strong hover:bg-surface-hover font-display font-medium transition-all duration-150 ease-out flex items-center justify-center gap-2">
+                    <Plus size={18} strokeWidth={1.5} /> Add New Class
+                  </button>
+                )}
              </div>
           )}
         </div>

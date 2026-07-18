@@ -1,8 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import ThemeToggle from '@/components/ThemeToggle'
-import { Plus } from 'lucide-react'
+import { Plus, Rocket } from 'lucide-react'
 
 export default async function ProjectsPage() {
   const supabase = await createClient()
@@ -18,16 +17,29 @@ export default async function ProjectsPage() {
   // Fetch projects the user has access to
   const { data: projects } = await supabase.from('projects').select('*')
   
-  // Fetch basic stats so the user knows which project they are working on
-  const { data: images } = await supabase.from('images').select('project_id, status')
+  // Fetch exact counts for each project efficiently
+  const statsArray = projects ? await Promise.all(projects.map(async (p) => {
+    // Only count images that belong to the currently selected drive folder
+    const { count: total } = await supabase
+      .from('images')
+      .select('*', { count: 'exact', head: true })
+      .eq('project_id', p.id)
+      .eq('drive_folder_id', p.drive_image_folder_id)
+
+    const { count: done } = await supabase
+      .from('images')
+      .select('*', { count: 'exact', head: true })
+      .eq('project_id', p.id)
+      .eq('drive_folder_id', p.drive_image_folder_id)
+      .eq('status', 'done')
+      
+    return { id: p.id, total: total || 0, done: done || 0 }
+  })) : []
   
+  const statsMap = Object.fromEntries(statsArray.map(s => [s.id, s]))
+
   const projectStats = (projectId: string) => {
-    if (!images) return { total: 0, done: 0 }
-    const projectImages = images.filter(i => i.project_id === projectId)
-    return {
-      total: projectImages.length,
-      done: projectImages.filter(i => i.status === 'done').length
-    }
+    return statsMap[projectId] || { total: 0, done: 0 }
   }
 
   return (
@@ -40,22 +52,13 @@ export default async function ProjectsPage() {
               Logged in as <span className="text-text-primary font-medium">{user.email}</span>
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Link 
               href="/projects/new" 
               className="flex items-center gap-2 rounded-md bg-accent-cyan px-5 py-2 text-sm font-display font-medium text-bg transition-colors hover:bg-accent-cyan-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring"
             >
               <Plus size={16} strokeWidth={2} /> Create Project
             </Link>
-            <ThemeToggle />
-            <form action="/auth/signout" method="post">
-              <button
-                className="rounded-md border border-border px-5 py-2 text-sm font-display font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:border-accent-cyan hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring"
-                type="submit"
-              >
-                Sign out
-              </button>
-            </form>
           </div>
         </header>
 
@@ -92,14 +95,20 @@ export default async function ProjectsPage() {
               })}
             </div>
           ) : (
-            <div className="rounded-lg bg-surface border border-border p-12 text-center flex flex-col items-center justify-center min-h-[300px]">
-              <div className="w-16 h-16 rounded-full bg-surface-2 border border-border flex items-center justify-center mb-4">
-                 <span className="text-2xl opacity-50">📁</span>
+            <div className="rounded-lg bg-surface border border-border p-12 text-center flex flex-col items-center justify-center min-h-[400px]">
+              <div className="w-20 h-20 rounded-2xl bg-surface-2 border border-border shadow-inner flex items-center justify-center mb-6 text-accent-cyan">
+                 <Rocket size={40} strokeWidth={1.5} />
               </div>
-              <h2 className="text-xl font-display font-medium text-text-primary mb-2">No projects found</h2>
-              <p className="text-sm text-text-secondary max-w-md mx-auto">
-                You do not have access to any projects yet. When you are added to a project, it will appear here.
+              <h2 className="text-2xl font-display font-semibold text-text-primary mb-3">Welcome to Anytate!</h2>
+              <p className="text-sm text-text-secondary max-w-md mx-auto mb-8 leading-relaxed">
+                You don't have any projects yet. You can wait for a team member to invite you to their project, or you can create your own workspace to start annotating immediately.
               </p>
+              <Link 
+                href="/projects/new" 
+                className="flex items-center gap-2 rounded-lg bg-accent-cyan px-8 py-3 text-sm font-display font-semibold text-bg transition-colors hover:bg-accent-cyan-hover shadow-lg shadow-accent-cyan/20"
+              >
+                <Plus size={18} strokeWidth={2.5} /> Create Your First Project
+              </Link>
             </div>
           )}
         </main>

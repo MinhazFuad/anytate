@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -10,6 +10,7 @@ import AnnotationCanvas from '@/components/AnnotationCanvas'
 
 export default function ReviewQueuePage() {
   const { id } = useParams()
+  const router = useRouter()
   const supabase = createClient()
   
   const [loading, setLoading] = useState(true)
@@ -23,6 +24,16 @@ export default function ReviewQueuePage() {
   useEffect(() => {
     async function initReview() {
       try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) throw new Error('Not authenticated')
+
+        const { data: member } = await supabase.from('project_members').select('role').eq('project_id', id).eq('user_id', user.id).single()
+        if (!member) throw new Error('You are not a member of this project.')
+        if (member.role === 'annotator') {
+          router.replace(`/projects/${id}`)
+          return
+        }
+
         // 1. Get project
         const { data: project } = await supabase.from('projects').select('*').eq('id', id).single()
         if (!project) throw new Error('Project not found')
@@ -34,16 +45,20 @@ export default function ReviewQueuePage() {
           if (classData) setClasses(classData)
         }
 
-        // 3. Get images that are 'done' and whose annotation is 'pending' (pending review)
-        // Since we can't easily join on the client, we'll fetch annotations that are pending, then fetch their images
-        const { data: pendingAnnotations } = await supabase.from('annotations').select('id, image_id, grounded_instances').eq('status', 'pending')
+        // Scope directly to this project's folder via inner join — avoids fetching cross-project annotations
+        const { data: pendingAnnotations } = await supabase
+          .from('annotations')
+          .select('id, image_id, grounded_instances, images!inner(id, project_id, drive_folder_id)')
+          .eq('images.project_id', id)
+          .eq('images.drive_folder_id', project.drive_image_folder_id)
+          .eq('status', 'pending')
         
         if (!pendingAnnotations || pendingAnnotations.length === 0) {
           throw new Error('No images pending review! You are all caught up.')
         }
 
         const imageIds = pendingAnnotations.map(a => a.image_id)
-        const { data: images } = await supabase.from('images').select('*').eq('project_id', id).eq('drive_folder_id', project.drive_image_folder_id).in('id', imageIds)
+        const { data: images } = await supabase.from('images').select('id, file_name, drive_file_id, drive_folder_id, project_id, status').eq('project_id', id).eq('drive_folder_id', project.drive_image_folder_id).in('id', imageIds)
 
         if (!images || images.length === 0) {
            throw new Error('No images pending review.')
@@ -85,13 +100,52 @@ export default function ReviewQueuePage() {
     }
     
     initReview()
-  }, [id, supabase])
+  }, [id])
 
   const handleUpdateStatus = async (status: 'approved' | 'flagged') => {
+    let notes = ''
+    if (status === 'flagged') {
+      const input = window.prompt("Enter reason for flagging (optional):")
+      if (input === null) return // user cancelled
+      notes = input
+    }
+
     try {
       setLoading(true)
-      const { error } = await supabase.from('annotations').update({ status }).eq('image_id', activeImage.id)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error("Not authenticated")
+
+      const { data: ann } = await supabase.from('annotations').select('id').eq('image_id', activeImage.id).single()
+      if (!ann) throw new Error("Annotation not found")
+
+      const { error } = await supabase.from('annotations').update({ 
+        status,
+        review_notes: notes || null,
+        reviewed_by: user.id
+      }).eq('id', ann.id)
+      
       if (error) throw error
+
+      await supabase.from('annotation_history').insert({
+        annotation_id: ann.id,
+        action_type: status === 'approved' ? 'approve' : 'flag',
+        payload: { notes },
+        created_by: user.id
+      })
+
+      if (status === 'flagged') {
+         // fetch the annotator of this image
+         const { data: annotatorData } = await supabase.from('annotations').select('annotator_id').eq('id', ann.id).single()
+         if (annotatorData?.annotator_id && annotatorData.annotator_id !== user.id) {
+            await supabase.from('notifications').insert({
+               user_id: annotatorData.annotator_id,
+               project_id: id,
+               type: 'flagged',
+               message: `Your annotation on ${activeImage.file_name} was flagged: ${notes || 'No reason provided'}`,
+               link: `/projects/${id}?imageId=${activeImage.id}`
+            })
+         }
+      }
       
       if (window.location.search) {
          window.location.href = `/projects/${id}/review`

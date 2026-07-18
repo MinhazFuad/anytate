@@ -1,70 +1,8 @@
-  Here is the current roadmap of the remaining uncompleted milestones, ensuring we capture everything requested in your  anytate-
-  implementation-plan.md  and  human_annotation_final_fix4.ipynb  files:
-  ### Milestone 11: True FCOT Data Contract & JSON Export
+ ### 1. "Solo Mode" Toggle (Auto-Approve)
+  We can add a simple toggle in the Project Settings called "Solo Mode (Bypass Review Queue)".
 
-  • Goal: Ensure every drawn instance and scene context completely abides by the FCOT (Free-text Chain-of-Thought) schema defined in the
-  Taxonomy Builder.
-  • Tasks: Update the  AnnotationCanvas  to embed the full taxonomy-derived schema into the JSON.
-  • Why it matters: This answers your requirement of "where is chain of thought in json outputs?"
-  ### Milestone 12: Developer/Terminal Aesthetics & Theme Toggle
-
-  • Goal: Overhaul the current glassmorphism design to a high-end, developer-centric terminal aesthetic.
-  • Tasks: Implement a rigid, syntax-highlighted vibe, a mono-spaced focus, and add a fully working Dark/White mode toggle.
-  • Why it matters: This answers your requirement of "where is developer coding vibe UI, where is darkmode/whitemode toggle?"
-
-  ### Milestone 13: Project Management Settings
-
-  • Goal: Add robust project lifecycle controls.
-  • Tasks: Add the ability to fully delete projects (with cascade confirmation). Add a robust settings page to edit preprocessing variables
-  and drive paths post-creation.
-  • Why it matters: This answers your requirement of "where is project management (no option to delete project)?"
-
-  ### Milestone 14: Coordinate Normalization
-
-  • Goal: Implement the exact coordinate math used in your Python backend.
-  • Tasks: Ensure the canvas normalizes all bounding boxes to  ymin_xmin_ymax_xmax_0to1000  rather than raw canvas pixels.
-
-  ### Milestone 15: Scene Context Persistence & Diagnostics
-
-  • Goal: Streamline annotator speed and match the notebook wrappers.
-  • Tasks: Ensure "Global Scene Context" fields can persist across image transitions if toggled. Automatically compute and inject 
-  derived_diagnostics  (like object counts, occlusion warnings, etc).
-
-  ### Milestone 16: Exact Export Schema Match
-
-  • Goal: Make the "Anytate JSON" export identical to the Python notebook format.
-  • Tasks: Finalize the  /api/export  logic to package the  global_scene_context ,  environmental_diagnostics , and  grounded_instances 
-  into the exact JSON tree shape expected by your training scripts.
-
-  ### Milestone 17: Image Preprocessing Port
-  • Goal: Bring backend image prep to the frontend.
-  • Tasks: Port the  max_dim  scaling and  jpeg_quality  logic into the browser or edge API so images are properly resized according to
-  project settings before being annotated.
-  ──────
-  We just finished the Custom CoT/Taxonomy tools (and provenance). Would you like to dive straight into Milestone 11 (True FCOT Data
-  Contract) next?
-
-────────────────────────────────────────────────────────────
-> look at the plan again make sure nothing is left out, make a more elaborate milestone plan
-
-▸ Thought for 52s, 350 tokens
-  Prioritizing Tool Usage
-
-● Read(C:/Users/Minhaz/Desktop/Code/anytate/anytate-implementation-plan.md) (ctrl+o to expand)
-
-▸ Thought for 5s, 857 tokens
-  Prioritizing Tool Usage
-● Read(C:/Users/Minhaz/Desktop/Code/anytate/human_annotation_final_fix4.ipynb) (ctrl+o to expand)
-
-▸ Thought for 1s
-  Prioritizing Tool Usage
-  I have reviewed the entire  anytate-implementation-plan.md  architecture document and the  human_annotation_final_fix4.ipynb  notebook to
-  ensure every single detail is captured. You are completely right—the previous list was too brief and missed a few crucial architectural
-  steps.
-
-  Here is the exhaustive, elaborate milestone plan for everything that remains to be built to reach 100% feature parity (and superiority)
-  over the original tool:
-  ### Milestone 11: True FCOT Data Contract & Server-Side Validation
+  • When this is turned on, clicking "Save" in the annotation workspace instantly sets the image status to  approved  instead of  pending .
+  • The image goes straight to the finished pile, and they never even have to look at the Review page.
 
   The FCOT structure must be rigidly enforced so corrupted data never pollutes the DB.
 

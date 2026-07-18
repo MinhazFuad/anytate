@@ -16,9 +16,17 @@ export default function ProvenanceHistoryPage() {
   const [loading, setLoading] = useState(true)
   const [taxVersions, setTaxVersions] = useState<any[]>([])
   const [sceneVersions, setSceneVersions] = useState<any[]>([])
+  const [role, setRole] = useState<string>('annotator')
 
   useEffect(() => {
     async function loadHistory() {
+      // Fetch role
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: member } = await supabase.from('project_members').select('role').eq('project_id', id).eq('user_id', user.id).single()
+        if (member) setRole(member.role)
+      }
+
       // Fetch taxonomy versions and their associated annotations + image filenames
       const { data: tData } = await supabase
         .from('taxonomy_versions')
@@ -129,8 +137,8 @@ export default function ProvenanceHistoryPage() {
 
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-display font-semibold text-text-primary">Data Provenance History</h1>
-            <p className="text-sm text-text-secondary mt-1">Track which images were annotated under which FCOT schema version.</p>
+            <h1 className="text-2xl font-display font-semibold text-text-primary">Versions</h1>
+            <p className="text-sm text-text-secondary mt-1">Track which images were annotated under which schema version.</p>
           </div>
         </div>
 
@@ -138,7 +146,7 @@ export default function ProvenanceHistoryPage() {
           
           {/* Taxonomy Column */}
           <div className="space-y-6">
-            <h2 className="text-xl font-display font-medium text-text-primary border-b border-border pb-2">Taxonomy History</h2>
+            <h2 className="text-xl font-display font-medium text-text-primary border-b border-border pb-2">Classes & CoTs History</h2>
             {taxVersions.map((v) => {
               const annotatedImages = v.annotations?.map((a: any) => a.images) || []
               return (
@@ -148,13 +156,14 @@ export default function ProvenanceHistoryPage() {
                       <input
                         type="text"
                         defaultValue={v.version_name || `Version ${v.version_number}`}
+                        disabled={role !== 'owner'}
                         onBlur={(e) => {
                            const newName = e.target.value.trim()
                            if (newName !== (v.version_name || `Version ${v.version_number}`)) {
                               handleAction('rename', v.id, 'taxonomy', newName)
                            }
                         }}
-                        className={`text-xl font-display font-medium bg-transparent border-b border-transparent hover:border-border focus:border-accent-cyan outline-none w-48 transition-colors ${v.is_active ? 'text-accent-cyan' : 'text-text-primary'}`}
+                        className={`text-xl font-display font-medium bg-transparent border-b border-transparent hover:border-border focus:border-accent-cyan outline-none w-48 transition-colors ${v.is_active ? 'text-accent-cyan' : 'text-text-primary'} disabled:opacity-50`}
                         placeholder={`Version ${v.version_number}`}
                       />
                       {v.is_active ? (
@@ -169,7 +178,7 @@ export default function ProvenanceHistoryPage() {
                            >
                              Set Active
                            </button>
-                           {annotatedImages.length === 0 && (
+                           {role === 'owner' && annotatedImages.length === 0 && (
                              <button 
                                onClick={() => handleAction('delete', v.id, 'taxonomy')}
                                className="px-3 py-1.5 text-[11px] font-display font-medium uppercase tracking-[0.03em] border border-accent-red/50 text-accent-red rounded-full hover:bg-accent-red/10 transition-colors"
@@ -221,13 +230,14 @@ export default function ProvenanceHistoryPage() {
                       <input
                         type="text"
                         defaultValue={v.version_name || `Version ${v.version_number}`}
+                        disabled={role !== 'owner'}
                         onBlur={(e) => {
                            const newName = e.target.value.trim()
                            if (newName !== (v.version_name || `Version ${v.version_number}`)) {
                               handleAction('rename', v.id, 'scene_metadata', newName)
                            }
                         }}
-                        className={`text-xl font-display font-medium bg-transparent border-b border-transparent hover:border-border focus:border-accent-cyan outline-none w-48 transition-colors ${v.is_active ? 'text-accent-cyan' : 'text-text-primary'}`}
+                        className={`text-xl font-display font-medium bg-transparent border-b border-transparent hover:border-border focus:border-accent-cyan outline-none w-48 transition-colors ${v.is_active ? 'text-accent-cyan' : 'text-text-primary'} disabled:opacity-50`}
                         placeholder={`Version ${v.version_number}`}
                       />
                       {v.is_active ? (
@@ -242,7 +252,7 @@ export default function ProvenanceHistoryPage() {
                            >
                              Set Active
                            </button>
-                           {annotatedImages.length === 0 && (
+                           {role === 'owner' && annotatedImages.length === 0 && (
                              <button 
                                onClick={() => handleAction('delete', v.id, 'scene_metadata')}
                                className="px-3 py-1.5 text-[11px] font-display font-medium uppercase tracking-[0.03em] border border-accent-red/50 text-accent-red rounded-full hover:bg-accent-red/10 transition-colors"

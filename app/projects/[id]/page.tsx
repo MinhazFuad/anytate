@@ -35,6 +35,16 @@ export default function ProjectWorkspacePage() {
   useEffect(() => {
     async function initWorkspace() {
       try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) throw new Error('Not authenticated')
+
+        const { data: member } = await supabase.from('project_members').select('role').eq('project_id', id).eq('user_id', user.id).single()
+        if (!member) throw new Error('You are not a member of this project.')
+        if (member.role === 'reviewer') {
+          router.replace(`/projects/${id}/review`)
+          return
+        }
+
         // 1. Get project
         const { data: project } = await supabase.from('projects').select('*').eq('id', id).single()
         if (!project) throw new Error('Project not found')
@@ -77,12 +87,14 @@ export default function ProjectWorkspacePage() {
           targetFileId = specificImg.drive_file_id
 
           // Load its existing annotations
-          const { data: ann } = await supabase.from('annotations').select('grounded_instances, scene_context, taxonomy_version_id, scene_metadata_field_set_id').eq('image_id', specificImg.id).maybeSingle()
+          const { data: ann } = await supabase.from('annotations').select('grounded_instances, scene_context, taxonomy_version_id, scene_metadata_field_set_id, status, review_notes').eq('image_id', specificImg.id).maybeSingle()
           if (ann) {
              if (ann.grounded_instances) setExistingBoxes(ann.grounded_instances)
              if (ann.scene_context) setSceneContext(ann.scene_context)
              if (ann.taxonomy_version_id) initialTaxId = ann.taxonomy_version_id
              if (ann.scene_metadata_field_set_id) initialSceneId = ann.scene_metadata_field_set_id
+             if (ann.status === 'flagged') setFlagReason(ann.review_notes || 'No notes provided by reviewer.')
+             else setFlagReason(null)
           }
 
         } else {
@@ -101,6 +113,7 @@ export default function ProjectWorkspacePage() {
                 setExistingBoxes(draft.draft_state.boxes)
               }
             }
+            setFlagReason(null)
 
           } else {
             // Sync images: find the first file from Drive that isn't already in the DB
@@ -123,13 +136,16 @@ export default function ProjectWorkspacePage() {
             const { data: newImg, error: imgErr } = await supabase.from('images').insert({
               project_id: id as string,
               drive_file_id: nextFile.id,
-              file_name: nextFile.name
+              file_name: nextFile.name,
+              width: nextFile.imageMediaMetadata?.width ? parseInt(nextFile.imageMediaMetadata.width) : null,
+              height: nextFile.imageMediaMetadata?.height ? parseInt(nextFile.imageMediaMetadata.height) : null
             }).select().single()
             
             if (imgErr) throw imgErr
             
             setActiveImage(newImg)
             targetFileId = nextFile.id
+            setFlagReason(null)
           }
         }
         
@@ -262,6 +278,7 @@ export default function ProjectWorkspacePage() {
 
   const [completedImages, setCompletedImages] = useState<any[]>([])
   const [preloadQueue, setPreloadQueue] = useState<{image: any, blobUrl: string, draftBoxes: any[], draftContext: any}[]>([])
+  const [flagReason, setFlagReason] = useState<string | null>(null)
 
   const handleTaxonomyChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
      const newId = e.target.value
@@ -344,12 +361,14 @@ export default function ProjectWorkspacePage() {
             setImgSrc(next.blobUrl)
             setExistingBoxes(next.draftBoxes)
             setSceneContext(getNextContext(next.draftContext))
+            setFlagReason(null)
             setLoading(false)
             
             // Refetch done images for sidebar
             const { data: recentAnns } = await supabase.from('annotations')
                .select('updated_at, images!inner(id, file_name)')
                .eq('images.project_id', id)
+               .eq('images.drive_folder_id', activeImage.drive_folder_id)
                .order('updated_at', { ascending: false })
                .limit(20)
             setCompletedImages(recentAnns?.map(a => a.images).reverse() || [])
@@ -382,6 +401,7 @@ export default function ProjectWorkspacePage() {
           setImgSrc(next.blobUrl)
           setExistingBoxes(next.draftBoxes)
           setSceneContext(getNextContext(next.draftContext))
+          setFlagReason(null)
           setLoading(false)
           
           // Replenish the queue!
@@ -407,8 +427,12 @@ export default function ProjectWorkspacePage() {
              <ThemeToggle />
            </div>
            
+           <Link href={`/projects/${id}/dashboard`} className="mb-2 text-xs font-display font-medium text-text-secondary hover:text-text-primary transition-all duration-150 ease-out flex items-center gap-1.5">
+              <ArrowLeft size={16} strokeWidth={1.5} /> Back to Dashboard
+           </Link>
+
            <div className="flex flex-col gap-1">
-             <label className="text-[10px] uppercase font-display font-medium tracking-[0.03em] text-text-secondary">Taxonomy Version</label>
+             <label className="text-[10px] uppercase font-display font-medium tracking-[0.03em] text-text-secondary">Classes & CoTs Version</label>
              <select 
                value={selectedTaxVersionId} 
                onChange={handleTaxonomyChange}
@@ -421,10 +445,6 @@ export default function ProjectWorkspacePage() {
                ))}
              </select>
            </div>
-
-           <Link href={`/projects/${id}/dashboard`} className="mt-1 text-xs font-display font-medium text-text-secondary hover:text-text-primary transition-all duration-150 ease-out flex items-center gap-1.5">
-              <ArrowLeft size={16} strokeWidth={1.5} /> Back to Dashboard
-           </Link>
          </div>
          <div className="p-6 flex-1 overflow-y-auto">
            <div className="mb-4 text-[11px] font-display uppercase tracking-[0.03em] text-text-secondary flex items-center justify-between">
@@ -469,9 +489,18 @@ export default function ProjectWorkspacePage() {
                </div>
              </div>
            )}
-        </div>
-        
-        <div className="flex-1 relative flex items-center justify-center min-h-0">
+         </div>
+         
+         {flagReason !== null && (
+            <div className="bg-accent-magenta border-b border-accent-magenta/50 px-6 py-2.5 flex items-center justify-between text-bg z-20 shadow-md">
+               <div className="flex items-center gap-2">
+                 <div className="font-display font-semibold text-sm">Reviewer Note:</div>
+                 <div className="font-body text-sm font-medium">{flagReason}</div>
+               </div>
+            </div>
+         )}
+         
+         <div className="flex-1 relative flex items-center justify-center min-h-0">
           <AnnotationCanvas 
             imgSrc={imgSrc} 
             classes={classes} 

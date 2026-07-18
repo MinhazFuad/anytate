@@ -7,7 +7,6 @@ import Link from 'next/link'
 import ThemeToggle from '@/components/ThemeToggle'
 import { ArrowLeft, Download, Folder } from 'lucide-react'
 import { toast } from 'sonner'
-import JSZip from 'jszip'
 
 export default function ExportPage() {
   const { id } = useParams()
@@ -16,6 +15,7 @@ export default function ExportPage() {
   const [loading, setLoading] = useState(true)
   const [project, setProject] = useState<any>(null)
   const [folders, setFolders] = useState<any[]>([])
+  const [accessDenied, setAccessDenied] = useState(false)
   
   const [format, setFormat] = useState('anytate')
   const [exportingFolder, setExportingFolder] = useState<string | null>(null)
@@ -23,12 +23,25 @@ export default function ExportPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const { data: p } = await supabase.from('projects').select('*').eq('id', id).single()
+        // RBAC: only owners can export
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        // Parallelize member check, project fetch, and images fetch after auth
+        const [{ data: member }, { data: p }, { data: images }] = await Promise.all([
+          supabase.from('project_members').select('role').eq('project_id', id).eq('user_id', user.id).single(),
+          supabase.from('projects').select('id, name').eq('id', id).single(),
+          supabase.from('images').select('status, drive_folder_id').eq('project_id', id)
+        ])
+
+        if (!member || member.role !== 'owner') {
+          setAccessDenied(true)
+          setLoading(false)
+          return
+        }
+
         setProject(p)
 
-        // Fetch all images for this project to group them by folder
-        const { data: images } = await supabase.from('images').select('id, status, drive_folder_id').eq('project_id', id)
-        
         if (images) {
            const folderMap: Record<string, { total: number, done: number }> = {}
            
@@ -96,6 +109,8 @@ export default function ExportPage() {
       if (!res.ok) throw new Error(data.error)
       
       if (data.files && data.files.length > 0) {
+         // Dynamic import — only loads JSZip when user actually clicks Export
+         const JSZip = (await import('jszip')).default
          const zip = new JSZip()
          data.files.forEach((file: any) => {
             zip.file(file.name, file.content)
@@ -123,6 +138,19 @@ export default function ExportPage() {
   }
 
   if (loading) return <div className="p-8 text-text-primary">Loading export options...</div>
+
+  if (accessDenied) return (
+    <div className="min-h-screen bg-bg flex items-center justify-center flex-col gap-4">
+      <div className="bg-surface border border-border rounded-lg p-10 text-center max-w-md">
+        <div className="text-3xl mb-4">🔒</div>
+        <h1 className="text-xl font-display font-semibold text-text-primary mb-2">Access Denied</h1>
+        <p className="text-sm text-text-secondary mb-6">Only Project Owners are permitted to export and download datasets.</p>
+        <a href={`/projects/${id}/dashboard`} className="text-accent-cyan font-display font-medium text-sm hover:underline">
+          ← Back to Dashboard
+        </a>
+      </div>
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-bg text-text-primary p-8 relative font-body">
