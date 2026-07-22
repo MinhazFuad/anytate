@@ -23,8 +23,9 @@ export default function GlobalNavbar() {
   return (
     <header style={{ viewTransitionName: 'site-header' }} className="h-14 border-b border-border bg-surface px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
       <div className="flex items-center gap-4">
-        <Link href={pathname.startsWith('/projects') ? "/projects" : "/"} className="font-display font-bold text-accent-cyan tracking-widest uppercase text-sm hover:text-accent-cyan-hover transition-colors duration-150 ease-out">
-          Anytate
+        <Link href={pathname.startsWith('/projects') ? "/projects" : "/"} className="flex items-center gap-2.5 font-display font-bold text-accent-cyan tracking-widest uppercase text-sm hover:text-accent-cyan-hover transition-colors duration-150 ease-out">
+          <img src="/logo.png" alt="AnyTate Logo" className="h-5 w-auto object-contain shrink-0" />
+          <span>ANYTATE</span>
         </Link>
       </div>
 

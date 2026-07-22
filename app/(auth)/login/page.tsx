@@ -85,8 +85,9 @@ export default function LoginPage() {
         {/* Header Anytate Logo with Typewriter Effect */}
         <Link 
           href="/" 
-          className="font-display font-bold tracking-[0.25em] uppercase text-2xl mb-6"
+          className="font-display font-bold tracking-[0.25em] uppercase text-2xl mb-6 flex flex-col items-center gap-2"
         >
+          <img src="/logo.png" alt="AnyTate Logo" className="h-8 w-auto object-contain shrink-0" />
           <TypewriterWord words={['ANNOTATE', 'ANYTATE']} />
         </Link>
         

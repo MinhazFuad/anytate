@@ -359,6 +359,7 @@ export default function ReviewQueuePage() {
              <Link href={`/projects/${id}/dashboard`} className="text-text-secondary hover:text-text-primary text-sm font-display font-medium transition-all duration-150 ease-out flex items-center gap-2">
                 <ArrowLeft size={18} strokeWidth={1.5} /> Back to Dashboard
              </Link>
+             <img src="/logo.png" alt="AnyTate" className="h-5 w-auto object-contain shrink-0" />
            </div>
            {sessionReviewed > 0 && (
              <div className="text-xs font-data text-accent-green bg-accent-green/10 px-2.5 py-1 rounded border border-accent-green/20 w-fit">

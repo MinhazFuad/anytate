@@ -555,6 +555,7 @@ export default function ProjectWorkspacePage() {
          <div className="p-5 border-b border-border flex flex-col gap-3">
            <div className="flex items-center justify-between">
              <div className="flex items-center gap-2">
+               <img src="/logo.png" alt="AnyTate" className="h-5 w-auto object-contain shrink-0" />
                <span className="text-base font-display font-semibold text-text-primary">Workspace</span>
                {project?.solo_mode && (
                  <span className="text-[10px] px-2 py-0.5 bg-accent-green/10 border border-accent-green/30 text-accent-green rounded font-display uppercase tracking-widest font-semibold flex items-center gap-1" title="Solo Mode: Auto-approves annotations upon save">

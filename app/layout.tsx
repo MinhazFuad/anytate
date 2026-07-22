@@ -22,8 +22,17 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Anytate",
-  description: "General-Purpose FCOT Annotation Web App",
+  title: "AnyTate — Intelligent Image Annotation with FCoT Reasoning",
+  description: "Sync Google Drive folders, enforce Few-Shot Chain-of-Thought taxonomy guidelines, and export YOLO, COCO, and JSON datasets natively.",
+  icons: {
+    icon: [
+      { url: '/logo.png', type: 'image/png' },
+      { url: '/icon.png', type: 'image/png' },
+      { url: '/favicon.ico', type: 'image/x-icon' }
+    ],
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  }
 };
 
 export default function RootLayout({

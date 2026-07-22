@@ -1,0 +1,25 @@
+<svg width="200" height="48" viewBox="0 0 200 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Transparent Background Logo Mark (matching sample.png) -->
+  <g transform="translate(0, -4) scale(0.8)">
+    <path d="M32 4L52 52H40.5L35.5 38H26.5L32 4Z" fill="url(#teal-main-logo)"/>
+    <path d="M22 30H38.5V36H24.2L22 30Z" fill="#00E5FF"/>
+    <path d="M24 26L18.5 38.5C16.8 41 14 43 12 45.5C10.5 47.5 9 51.5 9 55L14.5 51.5C17.5 49 20 45.5 22.8 42L28 35L24 26Z" fill="url(#teal-nib-logo)"/>
+    <line x1="20" y1="35" x2="27" y2="32" stroke="#0A0C10" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="15.5" cy="45" r="1.5" fill="#0A0C10"/>
+    <line x1="15.5" y1="45" x2="9" y2="55" stroke="#0A0C10" stroke-width="1.8" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Brand Text -->
+  <text x="52" y="32" font-family="sans-serif" font-weight="800" font-size="22" fill="#00E5FF" letter-spacing="2">ANYTATE</text>
+
+  <defs>
+    <linearGradient id="teal-main-logo" x1="22" y1="4" x2="52" y2="52" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00E5FF"/>
+      <stop offset="1" stop-color="#0097A7"/>
+    </linearGradient>
+    <linearGradient id="teal-nib-logo" x1="9" y1="26" x2="28" y2="55" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00E5FF"/>
+      <stop offset="1" stop-color="#00838F"/>
+    </linearGradient>
+  </defs>
+</svg>
