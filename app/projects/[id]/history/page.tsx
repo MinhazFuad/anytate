@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import ThemeToggle from '@/components/ThemeToggle'
 import { toast } from 'sonner'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Loader2 } from 'lucide-react'
 
 export default function ProvenanceHistoryPage() {
   const { id } = useParams()
@@ -121,7 +121,17 @@ export default function ProvenanceHistoryPage() {
     }
   }
 
-  if (loading) return <div className="min-h-screen bg-bg flex items-center justify-center text-text-primary">Loading history...</div>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-bg flex flex-col items-center justify-center font-body animate-in fade-in duration-500">
+        <Loader2 className="h-8 w-8 animate-spin text-accent-cyan mb-4" />
+        <div className="text-text-primary font-display font-medium text-lg">Loading Version History...</div>
+        <div className="text-text-secondary text-sm mt-2 max-w-[300px] text-center">
+          Fetching historical schemas...
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-bg text-text-primary p-8 font-body">

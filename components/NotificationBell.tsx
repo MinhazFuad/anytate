@@ -8,6 +8,7 @@ export default function NotificationBell() {
   const [invites, setInvites] = useState<any[]>([])
   const [notifications, setNotifications] = useState<any[]>([])
   const [open, setOpen] = useState(false)
+  const [visible, setVisible] = useState(false)
   const [loading, setLoading] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -40,12 +41,23 @@ export default function NotificationBell() {
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false)
+        setVisible(false)
+        setTimeout(() => setOpen(false), 150)
       }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  const toggleOpen = () => {
+    if (open) {
+      setVisible(false)
+      setTimeout(() => setOpen(false), 150)
+    } else {
+      setOpen(true)
+      requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)))
+    }
+  }
 
   const handleAction = async (inviteId: string, action: 'accept' | 'reject') => {
     setLoading(true)
@@ -93,8 +105,8 @@ export default function NotificationBell() {
   return (
     <div className="relative" ref={ref}>
       <button
-        onClick={() => setOpen(v => !v)}
-        className="relative flex items-center justify-center w-9 h-9 rounded-md border border-border bg-surface hover:bg-surface-hover transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring"
+        onClick={toggleOpen}
+        className="relative flex items-center justify-center w-8 h-8 rounded border border-border bg-surface hover:bg-surface-hover transition-colors duration-150 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring"
         aria-label="Notifications"
       >
         <Bell size={18} strokeWidth={1.5} className="text-text-secondary" />
@@ -106,7 +118,7 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 z-50 w-80 rounded-lg border border-border bg-surface shadow-xl overflow-hidden">
+        <div className={`absolute right-0 top-10 z-50 w-80 rounded-lg border border-border bg-surface shadow-[0_8px_24px_var(--shadow-color)] overflow-hidden transition-all duration-150 ease-out ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1'}`}>
           <div className="px-4 py-3 border-b border-border flex items-center justify-between">
             <span className="text-sm font-display font-semibold text-text-primary">Notifications</span>
             <span className="text-xs font-data text-text-tertiary">{totalCount} pending</span>
@@ -139,14 +151,14 @@ export default function NotificationBell() {
                     <button
                       disabled={loading}
                       onClick={() => handleAction(invite.id, 'accept')}
-                      className="flex-1 py-1.5 text-xs font-display font-semibold rounded-md bg-accent-cyan text-bg hover:bg-accent-cyan-hover transition-colors disabled:opacity-50"
+                      className="flex-1 h-7 text-xs font-display font-semibold rounded bg-accent-cyan text-bg hover:bg-accent-cyan-hover transition-colors duration-150 ease-out disabled:opacity-50"
                     >
                       Accept
                     </button>
                     <button
                       disabled={loading}
                       onClick={() => handleAction(invite.id, 'reject')}
-                      className="flex-1 py-1.5 text-xs font-display font-medium rounded-md border border-border text-text-secondary hover:text-accent-red hover:border-accent-red transition-colors disabled:opacity-50"
+                      className="flex-1 h-7 text-xs font-display font-medium rounded border border-border text-text-secondary hover:text-accent-red hover:border-accent-red transition-colors duration-150 ease-out disabled:opacity-50"
                     >
                       Decline
                     </button>

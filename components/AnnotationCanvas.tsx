@@ -19,14 +19,15 @@ interface BoxWithClass extends PendingBox {
   color: string
   fcot?: any
 }
-
 export default function AnnotationCanvas({ 
   imgSrc, 
   classes, 
   onSave, 
   onSkip,
   initialBoxes,
-  imageId
+  imageId,
+  onUndo,
+  fileName
 }: { 
   imgSrc: string
   classes: any[]
@@ -34,6 +35,8 @@ export default function AnnotationCanvas({
   onSkip: () => void
   initialBoxes?: any[]
   imageId?: string
+  onUndo?: (action: string, data: any) => void
+  fileName?: string
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -42,6 +45,8 @@ export default function AnnotationCanvas({
   const [boxes, setBoxes] = useState<BoxWithClass[]>([])
   const [past, setPast] = useState<BoxWithClass[][]>([])
   const [future, setFuture] = useState<BoxWithClass[][]>([])
+  const [showUnannotateModal, setShowUnannotateModal] = useState(false)
+  const [unannotating, setUnannotating] = useState(false)
 
   const setBoxesWithHistory = (newBoxes: BoxWithClass[] | ((prev: BoxWithClass[]) => BoxWithClass[])) => {
     setBoxes(prevBoxes => {
@@ -61,10 +66,13 @@ export default function AnnotationCanvas({
   
   const [lastClass, setLastClass] = useState<string | null>(null)
   const [canvasDims, setCanvasDims] = useState({ w: 0, h: 0 })
+  const hasHydrated = useRef<string | null>(null)
 
   // Hydrate from initialBoxes
   useEffect(() => {
     if (!initialBoxes || !classes.length || canvasDims.w === 0 || canvasDims.h === 0) return
+    if (hasHydrated.current === imageId) return
+    
     const H = canvasDims.h
     const W = canvasDims.w
 
@@ -85,7 +93,15 @@ export default function AnnotationCanvas({
       }
     })
     setBoxes(hydrated)
-  }, [initialBoxes, classes, canvasDims])
+    hasHydrated.current = imageId || null
+  }, [initialBoxes, classes, canvasDims, imageId])
+
+  // Reset hydration when image changes
+  useEffect(() => {
+    if (imageId !== hasHydrated.current) {
+       hasHydrated.current = null
+    }
+  }, [imageId])
 
   // Load image
   useEffect(() => {
@@ -383,41 +399,89 @@ export default function AnnotationCanvas({
     return () => clearInterval(interval)
   }, [imageId]) // stable — only restarts when the image changes, not on every box draw
 
-  const handleServerUndo = async () => {
+  const handleUnannotate = async () => {
     if (!imageId) return
+    setUnannotating(true)
     try {
-      const res = await fetch('/api/annotations/undo', {
+      const res = await fetch('/api/annotations/unannotate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_id: imageId })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      
-      toast.success(data.action === 'deleted' ? 'Reverted to unannotated state.' : 'Reverted to previous edit.')
-      setTimeout(() => window.location.reload(), 1000)
+      setShowUnannotateModal(false)
+      toast.success('Image marked as unannotated.')
+      setBoxesWithHistory([]) // clear locally
+      if (onUndo) {
+        onUndo('deleted', data)
+      } else {
+        window.location.reload()
+      }
     } catch(err: any) {
-      toast.error("Undo failed: " + err.message)
+      toast.error('Unannotate failed: ' + err.message)
+    } finally {
+      setUnannotating(false)
     }
   }
 
   return (
     <div className="relative flex h-full w-full flex-col bg-bg">
-      <div className="flex px-4 py-2 bg-surface border-b border-border items-center justify-between z-10">
-        <div className="text-[13px] font-display font-medium text-text-primary flex items-center gap-2">
-           <span className="text-text-secondary">Instances:</span> 
-           <span className="font-data bg-surface-2 px-2 py-0.5 rounded-sm border border-border">{boxes.length}</span>
+
+      {/* Unannotate confirmation modal */}
+      {showUnannotateModal && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm">
+          <div className="bg-surface border border-border rounded-lg p-6 w-[340px] flex flex-col gap-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex flex-col gap-1.5">
+              <div className="text-base font-display font-semibold text-text-primary">Unannotate this image?</div>
+              <div className="text-sm font-body text-text-secondary leading-relaxed">
+                All bounding boxes, scene metadata, and annotation history for this image will be permanently deleted. The image will return to the pending queue.
+              </div>
+            </div>
+            <div className="bg-accent-red/8 border border-accent-red/30 rounded px-3 py-2 text-[12px] font-body text-accent-red">
+              This action cannot be undone.
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowUnannotateModal(false)}
+                disabled={unannotating}
+                className="h-9 px-4 bg-transparent border border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded text-[13px] font-display font-medium transition-all duration-150 disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUnannotate}
+                disabled={unannotating}
+                className="h-9 px-4 bg-accent-red text-bg hover:bg-accent-red/80 rounded text-[13px] font-display font-medium transition-all duration-150 disabled:opacity-40 flex items-center gap-2"
+              >
+                {unannotating && <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.3"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>}
+                {unannotating ? 'Removing...' : 'Yes, unannotate'}
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-2">
+      )}
+
+      <div className="flex px-4 py-2 bg-surface border-b border-border items-center justify-between z-10 gap-4">
+        <span className="text-sm font-data font-medium text-text-primary truncate min-w-0 flex-1" title={fileName}>{fileName || 'No image'}</span>
+        <div className="flex items-center gap-2 shrink-0">
           {initialBoxes && initialBoxes.length > 0 && (
-            <button onClick={handleServerUndo} className="h-9 px-4 flex items-center bg-transparent border border-accent-red text-accent-red rounded text-[13px] font-display font-medium hover:bg-accent-red/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring">
-              Undo Server Edit
+            <button
+              onClick={() => setShowUnannotateModal(true)}
+              className="h-9 px-4 flex items-center bg-transparent border border-accent-red/60 text-accent-red rounded text-[13px] font-display font-medium hover:bg-accent-red/10 hover:border-accent-red focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring transition-all duration-150"
+            >
+              Unannotate
             </button>
           )}
           <button onClick={onSkip} className="h-9 px-4 flex items-center bg-transparent border border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded text-[13px] font-display font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring">Skip</button>
-          <button onClick={() => onSave(boxes)} className="h-9 px-4 flex items-center bg-accent-cyan text-bg border-none hover:bg-accent-cyan-hover rounded text-[13px] font-display font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring">
-            Save & Next <span className="ml-2 px-1.5 py-0.5 bg-bg/20 text-bg/90 rounded-[2px] text-[11px] font-data font-semibold">[Enter]</span>
-          </button>
+          <div className="h-9 flex items-center gap-px">
+            <button onClick={() => onSave(boxes)} className="h-9 px-4 flex items-center bg-accent-cyan text-bg border-none hover:bg-accent-cyan-hover rounded-l text-[13px] font-display font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring">
+              Save & Next <span className="ml-2 px-1.5 py-0.5 bg-bg/20 text-bg/90 rounded-[2px] text-[11px] font-data font-semibold">[Enter]</span>
+            </button>
+            <div className="h-9 px-2.5 flex items-center bg-accent-cyan-hover text-bg rounded-r text-[12px] font-data font-semibold border-l border-bg/20" title="Bounding box count">
+              {boxes.length}
+            </div>
+          </div>
         </div>
       </div>
       

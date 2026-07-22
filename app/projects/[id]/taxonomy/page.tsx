@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import ThemeToggle from '@/components/ThemeToggle'
 import { toast } from 'sonner'
-import { ArrowLeft, Plus } from 'lucide-react'
+import { ArrowLeft, Plus, Loader2 } from 'lucide-react'
 
 type FCOT = {
   "Primary Cue": string;
@@ -213,7 +213,17 @@ export default function TaxonomyBuilderPage() {
     setSaving(false)
   }
 
-  if (loading) return <div className="p-8 text-white">Loading Classes & CoTs...</div>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-bg flex flex-col items-center justify-center font-body animate-in fade-in duration-500">
+        <Loader2 className="h-8 w-8 animate-spin text-accent-cyan mb-4" />
+        <div className="text-text-primary font-display font-medium text-lg">Loading Classes & CoTs...</div>
+        <div className="text-text-secondary text-sm mt-2 max-w-[300px] text-center">
+          Fetching schema versions...
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-bg text-text-primary p-8 font-body">
@@ -254,7 +264,7 @@ export default function TaxonomyBuilderPage() {
             <div className="flex items-center gap-4">
               <button 
                  onClick={() => setMode(mode === 'form' ? 'json' : 'form')}
-                 className="px-4 py-2 bg-transparent border border-border rounded-md text-text-primary text-sm font-display font-medium hover:bg-surface-hover hover:border-accent-cyan transition-all duration-150 ease-out"
+                 className="h-9 px-4 bg-transparent border border-border rounded text-text-primary text-sm font-display font-medium hover:bg-surface-hover hover:border-accent-cyan transition-all duration-150 ease-out active:scale-[0.98]"
               >
                  {mode === 'form' ? 'Switch to JSON Import' : 'Switch to Form Builder'}
               </button>
@@ -263,12 +273,12 @@ export default function TaxonomyBuilderPage() {
                 value={versionName}
                 onChange={e => setVersionName(e.target.value)}
                 placeholder={`Version ${(version || 0) + 1} Name`}
-                className="bg-surface border border-border rounded-md px-4 py-2 text-sm font-body text-text-primary placeholder:text-text-tertiary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring"
+                className="h-9 bg-surface border border-border rounded px-4 text-sm font-body text-text-primary placeholder:text-text-tertiary focus:border-accent-cyan focus:outline-none transition-colors duration-150 ease-out"
               />
               <button 
                 onClick={mode === 'json' ? handleJsonImport : handleSave}
                 disabled={saving || (mode === 'form' && classes.length === 0)}
-                className="px-6 py-2 bg-accent-cyan text-bg font-display font-medium rounded-md hover:bg-accent-cyan-hover disabled:bg-surface-2 disabled:text-text-tertiary transition-all duration-150 ease-out"
+                className="h-9 px-6 bg-accent-cyan text-bg font-display font-medium rounded hover:bg-accent-cyan-hover disabled:bg-surface-2 disabled:text-text-tertiary transition-all duration-150 ease-out active:scale-[0.98] disabled:active:scale-100"
               >
                 {saving ? 'Saving...' : mode === 'json' ? 'Validate & Import JSON' : 'Publish New Version'}
               </button>
@@ -294,7 +304,7 @@ export default function TaxonomyBuilderPage() {
                </button>
              </div>
           ) : (
-             <div className="space-y-6">
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                {classes.map((cls, i) => (
                  <div key={i} className="border border-border rounded-lg bg-surface overflow-hidden">
                    <div className="p-4 bg-surface-2 flex items-center justify-between border-b border-border">

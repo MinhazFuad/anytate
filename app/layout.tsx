@@ -50,7 +50,11 @@ export default function RootLayout({
             position="bottom-right"
             toastOptions={{
               className: 'font-display font-medium text-sm',
-              duration: 3000
+              duration: 3000,
+              style: {
+                animationDuration: '180ms',
+                animationTimingFunction: 'ease-out',
+              }
             }}
           />
         </ThemeProvider>

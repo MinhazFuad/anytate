@@ -2,11 +2,22 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
-import { BoxSelect } from 'lucide-react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, Shield, Lock, X } from 'lucide-react'
 import ThemeToggle from '@/components/ThemeToggle'
+import TypewriterWord from '@/components/TypewriterWord'
+import { toast } from 'sonner'
 
 export default function LoginPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
+  
+  // Admin Login Modal State
+  const [showAdminModal, setShowAdminModal] = useState(false)
+  const [adminUsername, setAdminUsername] = useState('')
+  const [adminPassword, setAdminPassword] = useState('')
+  const [adminError, setAdminError] = useState('')
 
   const handleLogin = async () => {
     setLoading(true)
@@ -24,28 +35,66 @@ export default function LoginPage() {
     })
   }
 
+  const handleAdminAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAdminError('')
+
+    try {
+      const res = await fetch('/api/admin/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: adminUsername,
+          password: adminPassword
+        })
+      })
+
+      const contentType = res.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        throw new Error('Server returned invalid response format')
+      }
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Authentication failed')
+
+      sessionStorage.setItem('admin_session', 'true')
+      toast.success('Admin authentication verified')
+      router.push('/admin')
+    } catch (err: any) {
+      setAdminError(err.message)
+    }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg p-4 font-body relative overflow-hidden">
       
-      {/* Absolute Header */}
-      <div className="absolute top-0 left-0 right-0 p-6 flex justify-end">
+      {/* Absolute Header with Back to Home & Theme Toggle */}
+      <div className="absolute top-0 left-0 right-0 p-6 flex items-center justify-between z-10">
+        <Link 
+          href="/" 
+          className="inline-flex items-center gap-2 text-xs font-display font-medium text-text-secondary hover:text-text-primary transition-colors duration-150 ease-out"
+        >
+          <ArrowLeft size={16} strokeWidth={1.5} /> Back to Home
+        </Link>
         <ThemeToggle />
       </div>
 
-      {/* Background Glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-accent-cyan-muted rounded-full blur-[100px] -z-10 opacity-60"></div>
-      
-      <div className="w-full max-w-md rounded-2xl border border-border bg-surface/80 p-10 shadow-2xl backdrop-blur-xl flex flex-col items-center">
+      {/* Card */}
+      <div className="w-full max-w-md rounded-lg border border-border bg-surface p-10 shadow-[0_8px_24px_var(--shadow-color)] flex flex-col items-center relative">
         
-        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-accent-cyan to-accent-magenta flex items-center justify-center mb-6 shadow-lg">
-          <BoxSelect size={28} className="text-white" strokeWidth={2} />
-        </div>
+        {/* Header Anytate Logo with Typewriter Effect */}
+        <Link 
+          href="/" 
+          className="font-display font-bold tracking-[0.25em] uppercase text-2xl mb-6"
+        >
+          <TypewriterWord words={['ANNOTATE', 'ANYTATE']} />
+        </Link>
         
-        <div className="mb-10 text-center">
-          <h1 className="text-3xl font-display font-bold tracking-tight text-text-primary mb-2">
+        <div className="mb-8 text-center">
+          <h1 className="text-2xl font-display font-bold tracking-tight text-text-primary mb-2">
             Welcome to AnyTate
           </h1>
-          <p className="text-sm text-text-secondary font-display">
+          <p className="text-sm text-text-secondary font-display leading-relaxed">
             Sign in to access your annotation projects, manage your teams, and sync your Drive.
           </p>
         </div>
@@ -53,10 +102,10 @@ export default function LoginPage() {
         <button
           onClick={handleLogin}
           disabled={loading}
-          className="group relative flex w-full items-center justify-center gap-3 rounded-full bg-surface-2 border border-border px-4 py-3.5 text-sm font-display font-semibold text-text-primary transition-all hover:bg-surface-hover hover:border-text-secondary hover:shadow-md active:scale-95 disabled:opacity-50"
+          className="group relative flex w-full h-9 items-center justify-center gap-3 rounded border border-border bg-surface-2 px-4 text-sm font-display font-semibold text-text-primary transition-colors duration-150 ease-out hover:bg-surface-hover hover:border-text-secondary active:scale-[0.98] disabled:opacity-50"
         >
           {/* Google G Logo SVG */}
-          <svg className="w-5 h-5 transition-transform group-hover:scale-110" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
             <path
               d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
               fill="#4285F4"
@@ -80,7 +129,78 @@ export default function LoginPage() {
         <p className="mt-8 text-xs text-text-tertiary text-center max-w-[300px]">
           By continuing, you grant AnyTate read-only access to your Google Drive to sync image folders.
         </p>
+
+        {/* Discreet Admin Login Trigger */}
+        <button
+          type="button"
+          onClick={() => setShowAdminModal(true)}
+          className="mt-6 text-[11px] text-text-tertiary hover:text-text-secondary transition-colors font-data flex items-center gap-1 opacity-60 hover:opacity-100"
+          title="Admin Control Access"
+        >
+          <Shield size={12} /> Admin Portal
+        </button>
       </div>
+
+      {/* Discreet Admin Login Modal */}
+      {showAdminModal && (
+        <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-lg max-w-sm w-full p-6 shadow-2xl flex flex-col gap-4 relative animate-in fade-in zoom-in-95 duration-150">
+            <button
+              onClick={() => {
+                setShowAdminModal(false)
+                setAdminError('')
+              }}
+              className="absolute top-4 right-4 text-text-tertiary hover:text-text-primary"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="flex items-center gap-2 text-accent-cyan">
+              <Lock size={18} />
+              <h3 className="font-display font-semibold text-base text-text-primary">Admin Access Verification</h3>
+            </div>
+
+            <form onSubmit={handleAdminAuthSubmit} className="flex flex-col gap-3">
+              {adminError && (
+                <div className="text-xs text-accent-red bg-accent-red/10 border border-accent-red/20 p-2 rounded">
+                  {adminError}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-display uppercase tracking-wider text-text-secondary">Username</label>
+                <input
+                  type="text"
+                  value={adminUsername}
+                  onChange={e => setAdminUsername(e.target.value)}
+                  placeholder="Admin Username"
+                  className="bg-surface-2 border border-border rounded px-3 py-2 text-xs font-body text-text-primary focus:border-accent-cyan outline-none"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-display uppercase tracking-wider text-text-secondary">Password</label>
+                <input
+                  type="password"
+                  value={adminPassword}
+                  onChange={e => setAdminPassword(e.target.value)}
+                  placeholder="Admin Password"
+                  className="bg-surface-2 border border-border rounded px-3 py-2 text-xs font-body text-text-primary focus:border-accent-cyan outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="mt-2 w-full py-2 bg-accent-cyan text-bg rounded text-xs font-display font-medium hover:bg-accent-cyan-hover transition-colors"
+              >
+                Authenticate & Enter Portal
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+

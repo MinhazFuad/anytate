@@ -21,6 +21,18 @@
   --accent-red: #D92D4C;
   --focus-ring: rgba(0,151,167,0.35);
   --shadow-color: rgba(30,34,50,0.12);
+
+  /* Sizing scale — every button/input/select must use these */
+  --size-sm: 28px;
+  --size-md: 36px;
+  --size-lg: 44px;
+  --radius: 4px;
+  --radius-lg: 8px;
+
+  /* Background texture tokens */
+  --grid-line: rgba(0, 0, 0, 0.03);
+  --grid-line-sub: rgba(0, 0, 0, 0.011);
+  --noise-opacity: 0.022;
 }
 
 .dark {
@@ -42,6 +54,11 @@
   --accent-red: #FF5470;
   --focus-ring: rgba(0,229,255,0.35);
   --shadow-color: rgba(0,0,0,0.5);
+
+  /* Background texture — line grid on dark bg */
+  --grid-line: rgba(255, 255, 255, 0.022);
+  --grid-line-sub: rgba(255, 255, 255, 0.009);
+  --noise-opacity: 0.04;
 }
 
 @theme inline {
@@ -92,7 +109,196 @@
 body {
   background-color: var(--bg);
   color: var(--text-primary);
-  /* The layout sets font-family */
 }
 
-/* Remove glassmorphism utilities to match the strict flat design guide */
+/* ─── Background textures ─────────────────────────────────────────────────── */
+
+/*
+ * Override Tailwind's bg-bg to include the line grid.
+ * background-image renders over background-color on the SAME element
+ * so it is always visible regardless of z-index or child stacking.
+ *
+ * Pattern: blueprint/engineering line grid — the canonical sci-fi dev aesthetic.
+ * A subtle horizontal + vertical 1px line grid at 40px spacing.
+ * An even fainter 8px sub-grid gives it a technical CAD/terminal feel.
+ */
+.bg-bg {
+  background-color: var(--bg);
+  background-image:
+    /* Major grid lines */
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+    /* Sub-grid lines (half-opacity) */
+    linear-gradient(var(--grid-line-sub) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line-sub) 1px, transparent 1px);
+  background-size:
+    40px 40px,
+    40px 40px,
+    8px 8px,
+    8px 8px;
+}
+
+/* Noise grain: keep as fixed pseudo on html — it truly overlays everything */
+html::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: var(--noise-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 180px 180px;
+  transform: translateZ(0);
+  will-change: opacity;
+}
+
+/* ─── Hardware Acceleration & GPU Layer Compositing ────────────────────── */
+
+/* GPU layer promotion for backdrop blur effects to avoid main thread repaint bottleneck */
+.backdrop-blur,
+.backdrop-blur-sm,
+.backdrop-blur-md,
+.backdrop-blur-lg,
+.backdrop-blur-xl,
+[class*="backdrop-blur-"] {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+  will-change: backdrop-filter, transform;
+}
+
+/* Hardware acceleration for dynamic entry/exit animations & modals */
+.animate-in,
+[class*="animate-"] {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+
+/* Hardware accelerated canvas rasterization layer */
+canvas {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* Skeleton shimmer — 1.5s sweep signals "data incoming" */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--surface-hover) 50%,
+    var(--surface-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  transform: translateZ(0);
+}
+
+/* prefers-reduced-motion — collapse every transition to instant */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+  }
+
+  /* Collapse view transitions too */
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+
+/* ─── View Transitions ────────────────────────────────────────────────────── */
+
+/*
+ * Default page crossfade: 180ms fade + 4px upward slide on enter.
+ * Uses 3D subpixel translate for GPU accelerated compositing.
+ */
+@keyframes vt-fade-in {
+  from { opacity: 0; transform: translate3d(0, 4px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes vt-fade-out {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to   { opacity: 0; transform: translate3d(0, -4px, 0); }
+}
+
+::view-transition-old(root) {
+  animation: 120ms ease-in both vt-fade-out;
+}
+::view-transition-new(root) {
+  animation: 180ms ease-out 80ms both vt-fade-in;
+}
+
+/*
+ * Anchor the navbar — it should never move during page transitions.
+ * The header persists visually; only content below it slides.
+ */
+::view-transition-group(site-header) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(site-header) {
+  display: none;
+}
+::view-transition-new(site-header) {
+  animation: none;
+}
+
+/* ─── Hero GPU-Accelerated Background Animations ───────────────────────────── */
+
+@keyframes hero-float-1 {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-35px, -25px, 0) scale(1.08);
+  }
+}
+
+@keyframes hero-float-2 {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(40px, 30px, 0) scale(1.12);
+  }
+}
+
+@keyframes hero-pulse-glow {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
+
+.hero-orb-1 {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  animation: hero-float-1 12s ease-in-out infinite, hero-pulse-glow 8s ease-in-out infinite;
+}
+
+.hero-orb-2 {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  animation: hero-float-2 15s ease-in-out infinite, hero-pulse-glow 10s ease-in-out infinite;
+}
+
+
+

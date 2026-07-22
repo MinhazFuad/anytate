@@ -242,8 +242,8 @@ export default function ProjectSettingsModal({
 
   if (loading) {
     return (
-      <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8 font-body transition-all duration-300 ${isOpen ? 'bg-bg/80 backdrop-blur-sm' : 'bg-transparent backdrop-blur-none pointer-events-none'}`}>
-        <div className={`bg-bg border border-border p-8 rounded-xl shadow-2xl transition-all duration-300 ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4'}`}>
+      <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8 font-body transition-all duration-150 ${isOpen ? 'bg-bg/80' : 'bg-transparent pointer-events-none'}`}>
+        <div className={`bg-bg border border-border p-8 rounded-lg shadow-[0_8px_24px_var(--shadow-color)] transition-all duration-150 ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-[0.98] translate-y-1'}`}>
           <div className="text-text-primary font-display font-medium">Loading settings...</div>
         </div>
       </div>
@@ -252,11 +252,11 @@ export default function ProjectSettingsModal({
 
   return (
     <div 
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8 font-body transition-all duration-300 ${isOpen ? 'bg-bg/80 backdrop-blur-sm' : 'bg-transparent backdrop-blur-none pointer-events-none'}`}
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8 font-body transition-all duration-150 ${isOpen ? 'bg-bg/80' : 'bg-transparent pointer-events-none'}`}
       onClick={handleClose}
     >
       <div 
-        className={`bg-bg border border-border w-full max-w-[800px] max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl space-y-8 p-8 transition-all duration-300 ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4'}`}
+        className={`bg-bg border border-border w-full max-w-[800px] max-h-[90vh] overflow-y-auto rounded-lg shadow-[0_8px_24px_var(--shadow-color)] space-y-8 p-8 transition-all duration-150 ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-[0.98] translate-y-1'}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -265,8 +265,8 @@ export default function ProjectSettingsModal({
             <h1 className="text-2xl font-display font-semibold text-text-primary">Project Settings</h1>
             <p className="text-sm text-text-secondary mt-1">Manage project lifecycle and image preprocessing variables.</p>
           </div>
-          <button onClick={handleClose} className="text-text-secondary hover:text-text-primary transition-colors p-2 bg-surface hover:bg-surface-hover rounded-full">
-             <X size={20} />
+          <button onClick={handleClose} className="flex items-center justify-center w-8 h-8 rounded text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors duration-150 ease-out" aria-label="Close settings">
+             <X size={18} />
           </button>
         </div>
 
@@ -282,7 +282,7 @@ export default function ProjectSettingsModal({
                 type="text" 
                 value={projectName}
                 onChange={(e) => setProjectName(e.target.value)}
-                className="w-full bg-surface-2 border border-border rounded-md px-4 py-2.5 text-sm font-body text-text-primary focus:border-accent-cyan outline-none transition-colors"
+                className="w-full h-9 bg-surface-2 border border-border rounded px-3 text-sm font-body text-text-primary focus:border-accent-cyan focus:ring-2 focus:ring-[var(--focus-ring)] outline-none transition-colors duration-150"
               />
             </div>
 
@@ -518,7 +518,7 @@ export default function ProjectSettingsModal({
             <button 
               onClick={handleSaveSettings}
               disabled={saving}
-              className="flex items-center gap-2 px-6 py-2.5 bg-accent-cyan text-bg rounded-md text-sm font-display font-semibold hover:bg-accent-cyan-hover transition-colors disabled:opacity-50"
+              className="h-9 flex items-center gap-2 px-5 bg-accent-cyan text-bg rounded text-sm font-display font-semibold hover:bg-accent-cyan-hover transition-colors duration-150 ease-out active:scale-[0.98] disabled:opacity-50"
             >
               {saving ? 'Saving...' : <><Save size={16} /> Save Changes</>}
             </button>
@@ -538,17 +538,17 @@ export default function ProjectSettingsModal({
               <label className="text-xs font-display font-semibold text-text-secondary">
                 Type <span className="font-data text-text-primary px-1">{project?.name}</span> to confirm
               </label>
-              <div className="flex gap-4">
+              <div className="flex gap-3">
                 <input 
                   type="text" 
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  className="flex-1 bg-surface-2 border border-border rounded-md px-4 py-2.5 text-sm font-body text-text-primary focus:border-accent-red outline-none transition-colors"
+                  className="flex-1 h-9 bg-surface-2 border border-border rounded px-3 text-sm font-body text-text-primary focus:border-accent-red focus:ring-2 focus:ring-[rgba(255,84,112,0.35)] outline-none transition-colors duration-150"
                 />
                 <button 
                   onClick={handleDeleteProject}
                   disabled={deleting || deleteConfirmText !== project?.name}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-transparent border border-accent-red text-accent-red rounded-md text-sm font-display font-semibold hover:bg-accent-red/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="h-9 flex items-center gap-2 px-4 bg-transparent border border-accent-red text-accent-red rounded text-sm font-display font-semibold hover:bg-accent-red/10 transition-colors duration-150 ease-out active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {deleting ? 'Deleting...' : <><Trash2 size={16} /> Delete Project</>}
                 </button>

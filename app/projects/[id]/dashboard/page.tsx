@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import ThemeToggle from '@/components/ThemeToggle'
 import { toast } from 'sonner'
-import { ArrowLeft, Clock, Layout, CheckSquare, Settings, Network, ImageIcon } from 'lucide-react'
+import { ArrowLeft, Clock, Layout, CheckSquare, Settings, Network, ImageIcon, Loader2, Sparkles } from 'lucide-react'
 import ProjectSettingsModal from '@/components/ProjectSettingsModal'
 
 export default function ProjectDashboardPage() {
@@ -15,6 +15,7 @@ export default function ProjectDashboardPage() {
   
   const [showSettings, setShowSettings] = useState(false)
   const [loadingStep, setLoadingStep] = useState<string>('Initializing...')
+  const [loadingProgress, setLoadingProgress] = useState(0)
   const [project, setProject] = useState<any>(null)
   const [role, setRole] = useState<string>('annotator')
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -39,6 +40,7 @@ export default function ProjectDashboardPage() {
         
         // Fetch project members
         setLoadingStep('Fetching project members')
+        setLoadingProgress(15)
         const memRes = await fetch(`/api/projects/${id}/members`)
         if (memRes.ok) {
           const memData = await memRes.json()
@@ -49,6 +51,7 @@ export default function ProjectDashboardPage() {
 
         // Fetch recent activity
         setLoadingStep('Fetching activity')
+        setLoadingProgress(30)
         const { data: annotationHistory, error: ahErr } = await supabase.from('annotation_history')
           .select('id, action_type, created_at, created_by, payload, annotations!inner(image_id, images!inner(file_name, project_id))')
           .eq('annotations.images.project_id', id)
@@ -103,6 +106,7 @@ export default function ProjectDashboardPage() {
         if (p?.drive_image_folder_id) {
           try {
             setLoadingStep('Syncing images from Drive...')
+            setLoadingProgress(45)
             const listRes = await fetch(`/api/drive/list?folderId=${p.drive_image_folder_id}`)
             const listData = await listRes.json()
             if (listData.files && listData.files.length > 0) {
@@ -147,12 +151,14 @@ export default function ProjectDashboardPage() {
         }
 
         setLoadingStep('Counting images...')
+        setLoadingProgress(70)
         // Query images AFTER sync so the count is accurate for the current folder
         const { data: images } = await supabase.from('images').select('id, status').eq('project_id', id).eq('drive_folder_id', p.drive_image_folder_id)
         
         let anns: any[] = [];
         
         setLoadingStep('Calculating stats...')
+        setLoadingProgress(80)
         if (images) {
            const doneImages = images.filter((i: any) => i.status === 'done')
            const pendingImages = images.filter((i: any) => i.status === 'pending')
@@ -160,6 +166,7 @@ export default function ProjectDashboardPage() {
            
            if (doneImageIds.length > 0) {
               setLoadingStep('Fetching annotations...')
+              setLoadingProgress(90)
               const chunkSize = 150
               const chunks: string[][] = []
               for (let i = 0; i < doneImageIds.length; i += chunkSize) {
@@ -199,6 +206,12 @@ export default function ProjectDashboardPage() {
              firstFlagged
            })
         }
+        
+        // Allow the circle to visually complete 100% before unmounting, but very quickly
+        setLoadingProgress(100)
+        setLoadingStep('Finishing up...')
+        await new Promise(resolve => setTimeout(resolve, 100))
+
       } catch(err) {
         console.error(err)
       } finally {
@@ -209,7 +222,49 @@ export default function ProjectDashboardPage() {
     loadDashboard()
   }, [id])
 
-  if (loadingStep !== '') return <div className="p-8 text-text-primary">Loading dashboard: {loadingStep}</div>
+  if (loadingStep !== '') {
+    const radius = 28
+    const circumference = 2 * Math.PI * radius
+    const offset = circumference - (loadingProgress / 100) * circumference
+
+    return (
+      <div className="min-h-screen bg-bg flex flex-col items-center justify-center font-body animate-in fade-in duration-500">
+        <div className="relative flex items-center justify-center mb-6">
+          <svg className="w-16 h-16 -rotate-90">
+            <circle
+              className="text-surface-2"
+              strokeWidth="4"
+              stroke="currentColor"
+              fill="transparent"
+              r={radius}
+              cx="32"
+              cy="32"
+            />
+            <circle
+              className="text-accent-cyan transition-all duration-100 linear"
+              strokeWidth="4"
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+              strokeLinecap="round"
+              stroke="currentColor"
+              fill="transparent"
+              r={radius}
+              cx="32"
+              cy="32"
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center text-[11px] font-data font-medium text-text-primary">
+            {loadingProgress}%
+          </div>
+        </div>
+        <div className="text-text-primary font-display font-medium text-lg">{loadingStep}</div>
+        <div className="text-text-secondary text-sm mt-2 max-w-[300px] text-center">
+          Fetching latest project data and syncing with Google Drive...
+        </div>
+      </div>
+    )
+  }
+  
   if (!project) return (
     <div className="p-8 text-text-primary">
       <h1 className="text-xl font-bold text-accent-red mb-4">Project Not Found!</h1>
@@ -223,7 +278,7 @@ export default function ProjectDashboardPage() {
 
   return (
     <div className="min-h-screen bg-bg text-text-primary p-8 relative font-body">
-      <div className="max-w-[1280px] mx-auto space-y-8 relative z-10">
+      <div className="max-w-[1280px] mx-auto space-y-5 relative z-10">
         
         <div className="flex items-center justify-between mb-4">
            <Link href="/projects" className="text-text-secondary hover:text-text-primary text-sm font-display font-medium transition-all duration-150 ease-out flex items-center gap-2 w-fit">
@@ -239,45 +294,52 @@ export default function ProjectDashboardPage() {
         </div>
 
         <div className="flex flex-row items-center justify-between bg-surface border border-border p-5 rounded-lg gap-4 overflow-hidden">
-          <div className="shrink-0 max-w-[25%] flex flex-col items-start justify-center">
+          <div className="shrink-0 max-w-[30%] flex flex-col items-start justify-center">
             <h1 className="text-2xl font-display font-semibold text-text-primary mb-1.5 w-full truncate" title={project.name}>
               {project.name}
             </h1>
-            <span className="text-[10px] px-2 py-0.5 bg-surface-2 border border-border rounded text-text-secondary font-display uppercase tracking-widest font-semibold">
-              Role: {role}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] px-2 py-0.5 bg-surface-2 border border-border rounded text-text-secondary font-display uppercase tracking-widest font-semibold">
+                Role: {role}
+              </span>
+              {project.solo_mode && (
+                <span className="text-[10px] px-2 py-0.5 bg-accent-green/10 border border-accent-green/30 text-accent-green rounded font-display uppercase tracking-widest font-semibold flex items-center gap-1">
+                  <Sparkles size={10} /> Solo Mode (Auto-Approve)
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex items-center justify-end gap-2 flex-nowrap min-w-0">
-            <Link href={`/projects/${id}`} className="px-3 py-2 text-sm bg-accent-cyan hover:bg-accent-cyan-hover text-bg font-display font-medium rounded-md flex items-center gap-2 transition-all duration-150 ease-out whitespace-nowrap shrink-0">
+            <Link href={`/projects/${id}`} className="h-9 px-3 text-sm bg-accent-cyan hover:bg-accent-cyan-hover text-bg font-display font-medium rounded flex items-center gap-2 transition-colors duration-150 ease-out active:scale-[0.98] whitespace-nowrap shrink-0">
               <Layout size={16} strokeWidth={2} /> Enter Workspace
             </Link>
             
-            {(role === 'owner' || role === 'reviewer') && (
-              <Link href={`/projects/${id}/review`} className="px-3 py-2 text-sm bg-transparent border border-border hover:bg-surface-hover hover:border-accent-cyan text-text-primary font-display font-medium rounded-md flex items-center gap-2 transition-all duration-150 ease-out whitespace-nowrap shrink-0">
+            {(role === 'owner' || role === 'reviewer') && !project.solo_mode && (
+              <Link href={`/projects/${id}/review`} className="h-9 px-3 text-sm bg-transparent border border-border hover:bg-surface-hover hover:border-accent-cyan text-text-primary font-display font-medium rounded flex items-center gap-2 transition-colors duration-150 ease-out whitespace-nowrap shrink-0">
                 <CheckSquare size={16} strokeWidth={2} className="text-accent-cyan" /> Review Queue
               </Link>
             )}
 
             {role === 'owner' && (
               <>
-                <Link href={`/projects/${id}/taxonomy`} className="px-3 py-2 text-sm bg-transparent border border-border hover:bg-surface-hover hover:border-accent-cyan text-text-primary font-display font-medium rounded-md flex items-center gap-2 transition-all duration-150 ease-out whitespace-nowrap shrink-0">
+                <Link href={`/projects/${id}/taxonomy`} className="h-9 px-3 text-sm bg-transparent border border-border hover:bg-surface-hover hover:border-accent-cyan text-text-primary font-display font-medium rounded flex items-center gap-2 transition-colors duration-150 ease-out whitespace-nowrap shrink-0">
                   <Network size={16} strokeWidth={2} className="text-text-secondary" /> Classes & CoTs
                 </Link>
-                <Link href={`/projects/${id}/scene-fields`} className="px-3 py-2 text-sm bg-transparent border border-border hover:bg-surface-hover hover:border-accent-cyan text-text-primary font-display font-medium rounded-md flex items-center gap-2 transition-all duration-150 ease-out whitespace-nowrap shrink-0">
+                <Link href={`/projects/${id}/scene-fields`} className="h-9 px-3 text-sm bg-transparent border border-border hover:bg-surface-hover hover:border-accent-cyan text-text-primary font-display font-medium rounded flex items-center gap-2 transition-colors duration-150 ease-out whitespace-nowrap shrink-0">
                   <ImageIcon size={16} strokeWidth={2} className="text-text-secondary" /> Scene Fields
                 </Link>
               </>
             )}
 
             {role !== 'reviewer' && (
-              <Link href={`/projects/${id}/history`} className="px-3 py-2 text-sm bg-transparent border border-border hover:bg-surface-hover hover:border-accent-cyan text-text-primary font-display font-medium rounded-md flex items-center gap-2 transition-all duration-150 ease-out whitespace-nowrap shrink-0">
+              <Link href={`/projects/${id}/history`} className="h-9 px-3 text-sm bg-transparent border border-border hover:bg-surface-hover hover:border-accent-cyan text-text-primary font-display font-medium rounded flex items-center gap-2 transition-colors duration-150 ease-out whitespace-nowrap shrink-0">
                 <Clock size={16} strokeWidth={2} className="text-text-secondary" /> Versions
               </Link>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-6">
+        <div className="grid grid-cols-4 gap-4">
            <div className="bg-surface border border-border px-6 py-4 rounded-lg flex flex-col justify-between">
              <div className="text-text-secondary text-[11px] font-display uppercase tracking-[0.03em] mb-1">Total Images</div>
              <div className="text-[32px] leading-tight font-data font-medium text-text-primary">{stats.total}</div>
@@ -332,7 +394,7 @@ export default function ProjectDashboardPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-surface border border-border p-8 rounded-lg md:col-span-1">
             <h2 className="text-lg font-display font-medium text-text-primary mb-6">Team Members</h2>
             <div className="flex flex-col gap-4">
@@ -342,7 +404,9 @@ export default function ProjectDashboardPage() {
                     @{m.profiles?.username || 'unknown'}
                     {currentUser?.id === m.user_id && <span className="text-text-tertiary font-normal text-[11px] italic tracking-normal">(You)</span>}
                   </div>
-                  <div className="text-xs px-2 py-1 bg-surface border border-border rounded-md text-text-secondary uppercase tracking-widest">{m.role}</div>
+                  <div className="text-[10px] px-2 py-0.5 bg-surface-2 border border-border rounded text-text-secondary font-display uppercase tracking-widest font-semibold">
+                    {m.role}
+                  </div>
                 </div>
               ))}
               {members.length === 0 && <div className="text-text-secondary text-sm">No members found.</div>}

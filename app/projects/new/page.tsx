@@ -98,8 +98,8 @@ export default function NewProjectPage() {
   }
 
   return (
-    <div className="min-h-screen bg-bg text-text-primary p-8 font-body">
-      <div className="max-w-[800px] mx-auto space-y-8">
+    <div className="min-h-screen bg-bg text-text-primary p-8 relative font-body">
+      <div className="max-w-[1280px] mx-auto space-y-8 relative z-10">
         
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
@@ -113,7 +113,10 @@ export default function NewProjectPage() {
           <p className="text-sm text-text-secondary mt-1">Configure your annotation workspace and connect it to Google Drive.</p>
         </div>
 
-        <form onSubmit={handleCreate} className="space-y-6">
+        <form onSubmit={handleCreate}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column: Settings */}
+            <div className="lg:col-span-1 space-y-6">
           
           {/* General Settings */}
           <div className="bg-surface border border-border p-6 rounded-lg space-y-4">
@@ -126,7 +129,7 @@ export default function NewProjectPage() {
                 value={projectName}
                 onChange={(e) => setProjectName(e.target.value)}
                 placeholder="e.g. Traffic Camera Object Detection"
-                className="w-full bg-surface-2 border border-border rounded-md px-4 py-2.5 text-sm font-body text-text-primary focus:border-accent-cyan outline-none transition-colors"
+                className="w-full h-9 bg-surface-2 border border-border rounded px-4 text-sm font-body text-text-primary focus:border-accent-cyan outline-none transition-colors duration-150 ease-out"
                 required
               />
             </div>
@@ -149,13 +152,45 @@ export default function NewProjectPage() {
             </div>
           </div>
 
+          {/* Preprocessing Settings (Moved to left column) */}
+          <div className="bg-surface border border-border p-6 rounded-lg space-y-4">
+            <h2 className="text-lg font-display font-medium text-text-primary border-b border-border pb-2">Image Preprocessing</h2>
+            <p className="text-sm text-text-secondary mb-4">These variables control how images are scaled before they are presented in the canvas. You can change these later in Project Settings.</p>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs uppercase font-display font-semibold tracking-[0.03em] text-text-secondary">Preferred Max Px</label>
+                <input 
+                  type="number" 
+                  value={maxDim}
+                  onChange={(e) => setMaxDim(parseInt(e.target.value) || 1024)}
+                  className="w-full h-9 bg-surface-2 border border-border rounded px-4 text-sm font-data text-text-primary focus:border-accent-cyan outline-none transition-colors duration-150 ease-out"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs uppercase font-display font-semibold tracking-[0.03em] text-text-secondary">JPEG Quality</label>
+                <input 
+                  type="number" 
+                  min="1" max="100"
+                  value={jpegQuality}
+                  onChange={(e) => setJpegQuality(parseInt(e.target.value) || 85)}
+                  className="w-full h-9 bg-surface-2 border border-border rounded px-4 text-sm font-data text-text-primary focus:border-accent-cyan outline-none transition-colors duration-150 ease-out"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Drive Browser & Submit */}
+        <div className="lg:col-span-2 space-y-6 flex flex-col">
           {/* Drive Browser */}
           <div className="bg-surface border border-border p-6 rounded-lg space-y-4">
             <h2 className="text-lg font-display font-medium text-text-primary border-b border-border pb-2">Image Source (Google Drive)</h2>
             <p className="text-sm text-text-secondary mb-2">Browse your Google Drive and select the folder containing your images.</p>
             
             {/* Browser UI */}
-            <div className="border border-border rounded-md overflow-hidden bg-surface-2">
+            <div className="border border-border rounded overflow-hidden bg-surface-2 flex-1 flex flex-col">
                {/* Breadcrumbs */}
                <div className="flex items-center gap-1 p-3 border-b border-border bg-surface text-sm font-display font-medium text-text-secondary overflow-x-auto whitespace-nowrap scrollbar-hide">
                  {path.map((crumb, idx) => (
@@ -209,54 +244,26 @@ export default function NewProjectPage() {
                    type="button"
                    onClick={() => setSelectedFolderId(currentFolder.id)}
                    disabled={selectedFolderId === currentFolder.id}
-                   className="px-4 py-2 bg-surface-2 border border-border rounded-md text-sm font-display font-medium text-text-primary hover:bg-surface-hover hover:border-text-tertiary disabled:opacity-50 transition-colors"
+                   className="h-9 px-4 bg-surface-2 border border-border rounded text-sm font-display font-medium text-text-primary hover:bg-surface-hover hover:border-text-tertiary disabled:opacity-50 transition-colors duration-150 ease-out active:scale-[0.98]"
                  >
                    Select Current Folder
                  </button>
                </div>
             </div>
           </div>
-
-          {/* Preprocessing Settings */}
-          <div className="bg-surface border border-border p-6 rounded-lg space-y-4">
-            <h2 className="text-lg font-display font-medium text-text-primary border-b border-border pb-2">Image Preprocessing</h2>
-            <p className="text-sm text-text-secondary mb-4">These variables control how images are scaled before they are presented in the canvas. You can change these later in Project Settings.</p>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-xs uppercase font-display font-semibold tracking-[0.03em] text-text-secondary">Preferred Annotation Resolution (Max px)</label>
-                <input 
-                  type="number" 
-                  value={maxDim}
-                  onChange={(e) => setMaxDim(parseInt(e.target.value) || 1024)}
-                  className="w-full bg-surface-2 border border-border rounded-md px-4 py-2.5 text-sm font-data text-text-primary focus:border-accent-cyan outline-none transition-colors"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs uppercase font-display font-semibold tracking-[0.03em] text-text-secondary">JPEG Quality</label>
-                <input 
-                  type="number" 
-                  min="1" max="100"
-                  value={jpegQuality}
-                  onChange={(e) => setJpegQuality(parseInt(e.target.value) || 85)}
-                  className="w-full bg-surface-2 border border-border rounded-md px-4 py-2.5 text-sm font-data text-text-primary focus:border-accent-cyan outline-none transition-colors"
-                />
-              </div>
-            </div>
-          </div>
           
-          <div className="flex justify-end pt-4">
+          <div className="flex justify-end pt-4 mt-auto">
             <button 
               type="submit"
               disabled={loading || !selectedFolderId}
-              className="flex items-center gap-2 px-6 py-3 bg-accent-cyan text-bg rounded-md text-sm font-display font-semibold hover:bg-accent-cyan-hover transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 h-9 px-6 bg-accent-cyan text-bg rounded text-sm font-display font-semibold hover:bg-accent-cyan-hover transition-colors duration-150 ease-out active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
             >
               {loading ? 'Creating...' : <><FolderPlus size={18} /> Create Project</>}
             </button>
           </div>
-
-        </form>
+        </div>
+      </div>
+    </form>
       </div>
     </div>
   )

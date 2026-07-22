@@ -55,7 +55,7 @@ export default async function ProjectsPage() {
           <div className="flex items-center gap-3">
             <Link 
               href="/projects/new" 
-              className="flex items-center gap-2 rounded-md bg-accent-cyan px-5 py-2 text-sm font-display font-medium text-bg transition-colors hover:bg-accent-cyan-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring"
+              className="h-9 flex items-center gap-2 rounded bg-accent-cyan px-4 text-sm font-display font-medium text-bg transition-colors duration-150 ease-out hover:bg-accent-cyan-hover active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring"
             >
               <Plus size={16} strokeWidth={2} /> Create Project
             </Link>
@@ -71,7 +71,7 @@ export default async function ProjectsPage() {
                    <a 
                      key={p.id} 
                      href={`/projects/${p.id}/dashboard`}
-                     className="block rounded-lg bg-surface border border-border hover:border-accent-cyan hover:bg-surface-hover p-6 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring"
+                     className="block rounded-lg bg-surface border border-border hover:border-accent-cyan hover:bg-surface-hover p-6 transition-colors duration-150 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring"
                    >
                      <h2 className="text-xl font-display font-medium mb-2 text-text-primary">{p.name}</h2>
                      <p className="text-sm text-text-secondary mb-6 line-clamp-2">{p.description || 'No description provided.'}</p>
@@ -82,13 +82,13 @@ export default async function ProjectsPage() {
                          <span className="text-text-primary font-data">{stats.done} / {stats.total}</span>
                        </div>
                        <div className="w-full h-1.5 bg-surface-2 rounded-full overflow-hidden border border-border">
-                         <div className="h-full bg-accent-cyan transition-all duration-1000 ease-out" style={{ width: `${stats.total > 0 ? (stats.done / stats.total) * 100 : 0}%` }}></div>
+                         <div className="h-full bg-accent-cyan transition-[width] duration-150 ease-out" style={{ width: `${stats.total > 0 ? (stats.done / stats.total) * 100 : 0}%` }}></div>
                        </div>
                      </div>
 
                      <div className="text-accent-cyan text-sm font-display font-medium flex items-center gap-1 group">
                        Open Dashboard 
-                       <span className="transition-transform group-hover:translate-x-1">→</span>
+                       <span className="transition-transform duration-150 ease-out group-hover:translate-x-1">→</span>
                      </div>
                    </a>
                  )
@@ -96,7 +96,7 @@ export default async function ProjectsPage() {
             </div>
           ) : (
             <div className="rounded-lg bg-surface border border-border p-12 text-center flex flex-col items-center justify-center min-h-[400px]">
-              <div className="w-20 h-20 rounded-2xl bg-surface-2 border border-border shadow-inner flex items-center justify-center mb-6 text-accent-cyan">
+              <div className="w-20 h-20 rounded-lg bg-surface-2 border border-border flex items-center justify-center mb-6 text-accent-cyan">
                  <Rocket size={40} strokeWidth={1.5} />
               </div>
               <h2 className="text-2xl font-display font-semibold text-text-primary mb-3">Welcome to Anytate!</h2>
@@ -105,7 +105,7 @@ export default async function ProjectsPage() {
               </p>
               <Link 
                 href="/projects/new" 
-                className="flex items-center gap-2 rounded-lg bg-accent-cyan px-8 py-3 text-sm font-display font-semibold text-bg transition-colors hover:bg-accent-cyan-hover shadow-lg shadow-accent-cyan/20"
+                className="h-11 flex items-center gap-2 rounded bg-accent-cyan px-8 text-sm font-display font-semibold text-bg transition-colors duration-150 ease-out hover:bg-accent-cyan-hover active:scale-[0.98]"
               >
                 <Plus size={18} strokeWidth={2.5} /> Create Your First Project
               </Link>

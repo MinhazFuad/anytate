@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import ThemeToggle from '@/components/ThemeToggle'
 import { toast } from 'sonner'
-import { ArrowLeft, Plus } from 'lucide-react'
+import { ArrowLeft, Plus, Loader2 } from 'lucide-react'
 
 type FieldData = {
   id?: string;
@@ -145,7 +145,17 @@ export default function SceneFieldsBuilderPage() {
     setSaving(false)
   }
 
-  if (loading) return <div className="p-8 text-text-primary">Loading scene fields...</div>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-bg flex flex-col items-center justify-center font-body animate-in fade-in duration-500">
+        <Loader2 className="h-8 w-8 animate-spin text-accent-cyan mb-4" />
+        <div className="text-text-primary font-display font-medium text-lg">Loading Scene Fields...</div>
+        <div className="text-text-secondary text-sm mt-2 max-w-[300px] text-center">
+          Fetching metadata configurations...
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-bg text-text-primary p-8 font-body">
@@ -182,12 +192,12 @@ export default function SceneFieldsBuilderPage() {
                 value={versionName}
                 onChange={e => setVersionName(e.target.value)}
                 placeholder={`Version ${(version || 0) + 1} Name`}
-                className="bg-surface border border-border rounded-md px-4 py-2 text-sm font-body text-text-primary placeholder:text-text-tertiary focus:border-accent-cyan focus:outline-none focus:ring-2 focus:ring-focus-ring"
+                className="h-9 bg-surface border border-border rounded px-4 text-sm font-body text-text-primary placeholder:text-text-tertiary focus:border-accent-cyan focus:outline-none transition-colors duration-150 ease-out"
               />
               <button 
                 onClick={handleSave}
                 disabled={saving || fields.length === 0}
-                className="px-6 py-2 bg-accent-cyan text-bg font-display font-medium rounded-md hover:bg-accent-cyan-hover disabled:bg-surface-2 disabled:text-text-tertiary transition-all duration-150 ease-out"
+                className="h-9 px-6 bg-accent-cyan text-bg font-display font-medium rounded hover:bg-accent-cyan-hover disabled:bg-surface-2 disabled:text-text-tertiary transition-all duration-150 ease-out active:scale-[0.98] disabled:active:scale-100 disabled:opacity-50"
               >
                 {saving ? 'Saving...' : 'Publish New Version'}
               </button>
@@ -200,7 +210,7 @@ export default function SceneFieldsBuilderPage() {
             Define project-wide scene metadata fields here (e.g. Lighting, Turbidity, Store Region). These values can persist across images.
           </p>
 
-          <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             {fields.map((field, i) => (
               <div key={i} className="border border-border rounded-lg bg-surface overflow-hidden">
                 <div className="p-4 bg-surface-2 flex items-center justify-between border-b border-border">

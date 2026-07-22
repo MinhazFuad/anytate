@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
+
+const adminClient = createAdminClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export async function POST(request: Request) {
   try {
@@ -14,7 +20,7 @@ export async function POST(request: Request) {
     if (!image_id) return NextResponse.json({ error: 'Missing image_id' }, { status: 400 })
 
     // 1. Get the annotation for this image
-    const { data: annotation, error: annErr } = await supabase
+    const { data: annotation, error: annErr } = await adminClient
       .from('annotations')
       .select('id, grounded_instances')
       .eq('image_id', image_id)
@@ -25,7 +31,7 @@ export async function POST(request: Request) {
     }
 
     // 2. Fetch the latest history event for this annotation
-    const { data: historyEvent, error: histErr } = await supabase
+    const { data: historyEvent, error: histErr } = await adminClient
       .from('annotation_history')
       .select('*')
       .eq('annotation_id', annotation.id)
@@ -41,11 +47,9 @@ export async function POST(request: Request) {
     if (historyEvent.action_type === 'initial_save') {
       // If the last action was the initial save, undoing it means deleting the annotation
       // and marking the image as pending again.
-      await supabase.from('annotations').delete().eq('id', annotation.id)
-      await supabase.from('images').update({ status: 'pending' }).eq('id', image_id)
-      
-      // Delete the history row
-      await supabase.from('annotation_history').delete().eq('id', historyEvent.id)
+      await adminClient.from('annotations').delete().eq('id', annotation.id)
+      await adminClient.from('images').update({ status: 'pending' }).eq('id', image_id)
+      await adminClient.from('annotation_history').delete().eq('id', historyEvent.id)
       
       return NextResponse.json({ success: true, action: 'deleted' })
     }
@@ -54,13 +58,12 @@ export async function POST(request: Request) {
       // Restore previous state
       const previousState = historyEvent.payload.previous || []
       
-      await supabase.from('annotations').update({
+      await adminClient.from('annotations').update({
         grounded_instances: previousState,
         updated_at: new Date().toISOString()
       }).eq('id', annotation.id)
       
-      // Delete the history row (popping the stack)
-      await supabase.from('annotation_history').delete().eq('id', historyEvent.id)
+      await adminClient.from('annotation_history').delete().eq('id', historyEvent.id)
       
       return NextResponse.json({ success: true, action: 'reverted', restoredBoxes: previousState })
     }
